@@ -1,9 +1,10 @@
-const CACHE = 'taskhub-capture-v6';
+const CACHE = 'taskhub-capture-v7';
 const ASSETS = [
   '/capture.html',
   '/app.js',
   '/planning.js',
   '/capture.js',
+  '/sw-update.js',
   '/draft-store.js',
   '/styles.css',
   '/manifest.webmanifest',
@@ -45,9 +46,17 @@ self.addEventListener('fetch', (event) => {
     );
   } else if (ASSETS.includes(url.pathname)) {
     event.respondWith(
-      caches
-        .match(url.pathname)
-        .then((cached) => cached || fetch(event.request)),
+      fetch(event.request).then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          event.waitUntil(
+            caches.open(CACHE).then((cache) =>
+              cache.put(url.pathname, copy),
+            ),
+          );
+        }
+        return response;
+      }).catch(() => caches.open(CACHE).then((cache) => cache.match(url.pathname))),
     );
   }
 });

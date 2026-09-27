@@ -20,33 +20,34 @@
         <span class="brand-mark">▪</span>
         <span>Task Hub</span>
       </a>
-      <nav class="tabs" aria-label="Task lists">
-        <a href="#/" data-tab="inbox">Inbox</a>
+      <nav class="tabs" aria-label="Main navigation">
+        <a href="#/" data-tab="dashboard">Dashboard</a>
         <a href="#/today" data-tab="today">Today</a>
-        <a href="#/next" data-tab="next">Next</a>
-        <a href="#/someday" data-tab="someday">Someday</a>
-        <a href="#/done" data-tab="done">Done</a>
-        <a href="#/all" data-tab="all">All</a>
+        <a href="#/inbox" data-tab="inbox">Inbox</a>
+        <a href="#/next" data-tab="tasks">Tasks</a>
+        <details class="more-nav">
+          <summary>More</summary>
+          <nav class="more-nav-items" aria-label="More tools">
+            <a href="#/projects" data-tab="projects">Projects</a>
+            <a href="#/waiting" data-tab="waiting">Waiting</a>
+            <a href="#/snoozed" data-tab="snoozed">Snoozed</a>
+            <a href="#/views" data-tab="views">Saved views</a>
+            <a href="#/drafts" data-tab="drafts">Drafts</a>
+            <a href="#/devices" data-tab="devices">Devices</a>
+            <a href="#/schedules" data-tab="schedules">Schedules</a>
+            <a href="#/chores" data-tab="chores">Chores</a>
+            <div id="saved-views-nav" class="more-saved-views" aria-label="Saved views"></div>
+            <div class="more-account-actions">
+              <button type="button" id="shortcuts" title="Keyboard shortcuts (?)">Keyboard shortcuts</button>
+              <button type="button" id="sign-out" hidden>Sign out</button>
+            </div>
+          </nav>
+        </details>
       </nav>
       <div class="topbar-actions">
         <button class="btn btn-primary" id="new-ticket">Add task</button>
-        <button class="btn btn-ghost btn-sm" id="shortcuts" title="Keyboard shortcuts (?)">?</button>
-        <button class="btn btn-ghost btn-sm" id="sign-out" hidden>Sign out</button>
       </div>
     </header>
-
-    <nav class="secondary-nav" aria-label="Tools">
-      <a href="#/projects" data-tab="projects">Projects</a>
-      <a href="#/waiting" data-tab="waiting">Waiting</a>
-      <a href="#/snoozed" data-tab="snoozed">Snoozed</a>
-      <a href="#/views" data-tab="views">Saved views</a>
-      <a href="#/drafts" data-tab="drafts">Drafts</a>
-      <a href="#/dashboard" data-tab="dashboard">Dashboard</a>
-      <a href="#/devices" data-tab="devices">Devices</a>
-      <a href="#/schedules" data-tab="schedules">Schedules</a>
-      <a href="#/chores" data-tab="chores">Chores</a>
-    </nav>
-    <nav id="saved-views-nav" class="secondary-nav saved-nav" aria-label="Saved views"></nav>
 
     <main id="view" aria-live="polite"></main>
 

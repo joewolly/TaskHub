@@ -17,6 +17,7 @@ import {
   captureRoutes,
   clearDrafts,
   pendingCaptureHash,
+  saveQuickCapture,
 } from './capture.js';
 
 const TICKET_STATUSES = [
@@ -220,6 +221,13 @@ function guard(fn) {
 
 /** SQLite stores 'YYYY-MM-DD HH:MM:SS' in UTC; make that explicit before parsing. */
 const parseDate = (value) => new Date(`${String(value).replace(' ', 'T')}Z`);
+const shortDate = (value) =>
+  new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+    .format(new Date(`${value}T12:00:00Z`));
+const longDate = (value) =>
+  new Intl.DateTimeFormat(undefined, {
+    weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC',
+  }).format(new Date(`${value}T12:00:00Z`));
 
 function relativeTime(value) {
   if (!value) return '';
@@ -522,178 +530,128 @@ const parseTags = (value) =>
 /* ---- Dashboard ---------------------------------------------------------- */
 
 async function renderDashboard(view) {
-  const stats = await api('/stats');
-  const criticalOpen =
-    stats.by_priority.find((row) => row.priority === 'critical')?.count ?? 0;
+  const [stats, today, inbox, next, waiting] = await Promise.all([
+    api('/stats'),
+    api('/tickets?today=true&sort=today'),
+    api('/tickets?queue=inbox&status=active'),
+    api('/tickets?queue=next&actionable=true&sort=priority'),
+    api('/tickets?waiting=true'),
+  ]);
+  const attention = [
+    ...stats.overdue.map((task) => ({
+      ...task,
+      detail: `Due ${shortDate(task.due_date)}`,
+      urgent: true,
+    })),
+    ...stats.follow_ups.map((task) => ({
+      ...task,
+      detail: `Waiting on ${task.waiting_on}`,
+    })),
+    ...stats.stale.map((task) => ({
+      ...task,
+      detail: `Quiet ${relativeTime(task.updated_at)}`,
+    })),
+  ].filter((task, index, rows) => rows.findIndex((row) => row.id === task.id) === index);
+  const nextUp = next.filter((task) =>
+    task.today_rank === null &&
+    !task.waiting_on &&
+    (!task.due_date || task.due_date >= planningDate),
+  );
 
   view.append(
-    el('div', { class: 'page-head' }, el('div', {}, el('h1', {}, 'Dashboard'))),
-    el(
-      'div',
-      { class: 'stat-grid' },
-      stat(stats.open_tickets, 'Open tasks'),
-      stat(
-        criticalOpen,
-        'Critical',
-        criticalOpen > 0 ? 'var(--critical)' : null,
-      ),
-      stat(
-        stats.overdue.length,
-        'Overdue',
-        stats.overdue.length > 0 ? 'var(--high)' : null,
-      ),
-      stat(stats.active_devices, `Active devices of ${stats.total_devices}`),
+    el('div', { class: 'page-head dashboard-head' },
+      el('div', {}, el('h1', {}, 'Dashboard'), el('p', {}, 'Your work at a glance.')),
+      el('span', { class: 'dashboard-date' }, `Today · ${longDate(planningDate)}`),
     ),
-    el(
-      'div',
-      { class: 'dash-grid' },
-      priorityCard(stats.by_priority, stats.open_tickets),
-      hotDevicesCard(stats.hot_devices),
-      attentionCard(stats.overdue, stats.stale),
-      el(
-        'section',
-        { class: 'card' },
-        el('h2', {}, 'Follow up'),
-        stats.follow_ups.length
-          ? el(
-              'ul',
-              { class: 'mini-list' },
-              ...stats.follow_ups.map((t) =>
-                el(
-                  'li',
-                  {},
-                  el('a', { href: `#/tickets/${t.id}` }, t.title),
-                  el('span', { class: 'muted' }, t.waiting_on),
-                ),
-              ),
-            )
-          : el('p', { class: 'muted' }, 'No follow-ups due.'),
+    el('div', { class: 'dashboard-stats' },
+      dashboardStat(today.length, 'Today', '#/today'),
+      dashboardStat(inbox.length, 'Inbox', '#/inbox'),
+      dashboardStat(stats.overdue.length, 'Overdue', '#/today', stats.overdue.length > 0),
+      dashboardStat(waiting.length, 'Waiting', '#/waiting'),
+    ),
+    el('div', { class: 'dashboard-columns' },
+      el('div', { class: 'dashboard-stack' },
+        dashboardCard('Today\'s focus', '#/today', 'Open Today',
+          today.length ? today.slice(0, 5).map((task) => dashboardTask(task, true)) : el('p', { class: 'muted' }, 'Choose a few tasks for today.')),
+        dashboardCard('Needs attention', '#/all', 'See all',
+          attention.length ? attention.slice(0, 5).map((task) => dashboardTask(task, false, task.detail, task.urgent)) : el('p', { class: 'muted' }, 'Nothing needs urgent attention.')),
       ),
-      resolvedCard(stats.recently_resolved),
+      el('div', { class: 'dashboard-stack' },
+        dashboardCapture(),
+        dashboardCard('Next up', '#/next', 'Open Next',
+          nextUp.length
+            ? nextUp.slice(0, 4).map((task) => dashboardTask(task))
+            : el('p', { class: 'muted' }, 'No other tasks queued in Next.')),
+        dashboardCard('Devices', '#/devices', 'Open Devices',
+          el('p', { class: 'muted' }, stats.hot_devices.length
+            ? `${stats.hot_devices.length === 5 ? 'At least ' : ''}${stats.hot_devices.length} ${stats.hot_devices.length === 1 ? 'device has' : 'devices have'} open tasks.`
+            : 'No devices have open tasks.'),
+        ),
+      ),
     ),
   );
 }
 
-function stat(value, text, color) {
-  return el(
-    'div',
-    { class: 'stat' },
-    el(
-      'div',
-      { class: 'value', style: color ? `color: ${color}` : null },
-      value,
+function dashboardStat(value, title, href, alert = false) {
+  return el('a', { class: 'stat dashboard-stat', href },
+    el('div', { class: `value${alert ? ' overdue' : ''}` }, value),
+    el('div', { class: 'label' }, title),
+  );
+}
+
+function dashboardCard(title, href, linkText, content) {
+  return el('section', { class: 'card dashboard-card' },
+    el('div', { class: 'dashboard-card-head' },
+      el('h2', {}, title),
+      el('a', { href }, `${linkText} →`),
     ),
-    el('div', { class: 'label' }, text),
+    content,
   );
 }
 
-function priorityCard(byPriority, total) {
-  const counts = Object.fromEntries(
-    byPriority.map((r) => [r.priority, r.count]),
-  );
-  const max = Math.max(1, ...Object.values(counts));
-
-  return el(
-    'section',
-    { class: 'card' },
-    el('h2', {}, 'Open by priority'),
-    total === 0
-      ? el('p', { class: 'muted' }, 'Nothing open. Enjoy it.')
-      : [...PRIORITIES].reverse().map((priority) => {
-          const count = counts[priority] ?? 0;
-          return el(
-            'div',
-            { class: 'bar-row' },
-            el(
-              'a',
-              { href: `#/tickets?priority=${priority}` },
-              label(priority),
-            ),
-            el(
-              'div',
-              { class: 'bar-track' },
-              el('div', {
-                class: 'bar-fill',
-                style: `width: ${(count / max) * 100}%; background: var(--${priority})`,
-              }),
-            ),
-            el('span', { class: 'count' }, count),
-          );
-        }),
+function dashboardTask(task, completable = false, detail, urgent = false) {
+  const subtitle = detail ?? [task.device_name, task.priority && `${label(task.priority)} priority`].filter(Boolean).join(' · ');
+  return el('div', { class: 'dashboard-task' },
+    completable && el('input', {
+      type: 'checkbox',
+      'aria-label': `Mark ${task.title} done`,
+      onchange: guard(async (event) => {
+        event.currentTarget.disabled = true;
+        await api(`/tickets/${task.id}`, { method: 'PATCH', body: { status: 'resolved' } });
+        await render();
+      }),
+    }),
+    el('div', { class: 'dashboard-task-text' },
+      el('a', { href: `#/tickets/${task.id}` }, task.title),
+      subtitle && el('small', {}, subtitle),
+    ),
+    task.due_date === planningDate && el('span', { class: 'dashboard-task-meta' }, 'Due today'),
+    urgent && el('span', { class: 'dashboard-task-meta overdue' }, 'Overdue'),
   );
 }
 
-function hotDevicesCard(devices) {
-  return el(
-    'section',
-    { class: 'card' },
-    el('h2', {}, 'Devices needing attention'),
-    devices.length === 0
-      ? el('p', { class: 'muted' }, 'No device has open tickets.')
-      : el(
-          'ul',
-          { class: 'mini-list' },
-          ...devices.map((device) =>
-            el(
-              'li',
-              {},
-              el('a', { href: `#/devices/${device.id}` }, device.name),
-              el('span', { class: 'meta' }, `${device.open_tickets} open`),
-            ),
-          ),
-        ),
-  );
-}
-
-function attentionCard(overdue, stale) {
-  const rows = [
-    ...overdue.map((t) => ({ ...t, note: `due ${t.due_date}`, urgent: true })),
-    ...stale.map((t) => ({
-      ...t,
-      note: `quiet ${relativeTime(t.updated_at)}`,
-    })),
-  ].slice(0, 8);
-
-  return el(
-    'section',
-    { class: 'card' },
-    el('h2', {}, 'Overdue & stale'),
-    rows.length === 0
-      ? el('p', { class: 'muted' }, 'Nothing overdue or forgotten.')
-      : el(
-          'ul',
-          { class: 'mini-list' },
-          ...rows.map((t) =>
-            el(
-              'li',
-              {},
-              el('a', { href: `#/tickets/${t.id}` }, t.title),
-              el('span', { class: t.urgent ? 'meta overdue' : 'meta' }, t.note),
-            ),
-          ),
-        ),
-  );
-}
-
-function resolvedCard(tickets) {
-  return el(
-    'section',
-    { class: 'card' },
-    el('h2', {}, 'Recently resolved'),
-    tickets.length === 0
-      ? el('p', { class: 'muted' }, 'Nothing resolved yet.')
-      : el(
-          'ul',
-          { class: 'mini-list' },
-          ...tickets.map((t) =>
-            el(
-              'li',
-              {},
-              el('a', { href: `#/tickets/${t.id}` }, t.title),
-              el('span', { class: 'meta' }, relativeTime(t.resolved_at)),
-            ),
-          ),
-        ),
+function dashboardCapture() {
+  const input = el('input', { name: 'title', maxlength: 200, required: true, placeholder: 'What needs doing?', 'aria-label': 'New task title' });
+  const submit = el('button', { type: 'submit', class: 'btn' }, 'Add to Inbox');
+  return el('section', { class: 'card dashboard-card dashboard-capture' },
+    el('h2', {}, 'Quick capture'),
+    el('p', { class: 'muted' }, 'Add it now; sort it later.'),
+    el('form', { class: 'dashboard-capture-form', onsubmit: guard(async (event) => {
+      event.preventDefault();
+      if (submit.disabled) return;
+      submit.disabled = true;
+      try {
+        const result = await saveQuickCapture(input.value);
+        if (result.ticketId) {
+          toast('Saved to Inbox');
+          await render();
+        } else {
+          location.href = `/capture.html#/capture?draft=${result.draftId}`;
+        }
+      } finally {
+        submit.disabled = false;
+      }
+    }) }, input, submit),
   );
 }
 
@@ -731,6 +689,7 @@ const TASK_LISTS = {
 };
 
 async function renderTickets(view, query, list) {
+  view.classList.add('task-list-view');
   const searching = Boolean(query.q?.trim());
   const settings = TASK_LISTS[list];
   const params = new URLSearchParams(query);
@@ -759,7 +718,7 @@ async function renderTickets(view, query, list) {
     const next = new URLSearchParams(query);
     if (value) next.set(key, value);
     else next.delete(key);
-    const route = list === 'inbox' ? '/' : list ? `/${list}` : '/tickets';
+    const route = list === 'inbox' ? '/inbox' : list ? `/${list}` : '/tickets';
     location.hash = `#${route}${next.toString() ? `?${next}` : ''}`;
   };
 
@@ -767,6 +726,28 @@ async function renderTickets(view, query, list) {
     update('q', q),
   );
   search.setAttribute('aria-label', 'Search all tasks and notes');
+
+  const advancedFilters = el('div', { class: 'advanced-filters', id: 'task-filters' },
+    list !== 'done' && !searching &&
+      select('status', settings?.queue
+        ? [['active', 'Any progress'], ...TICKET_STATUSES.filter((s) => !['resolved', 'closed'].includes(s)).map((s) => [s, label(s)])]
+        : [['active', 'Active'], ['all', 'All statuses'], ['done', 'Done'], ...TICKET_STATUSES.map((s) => [s, label(s)])],
+      params.get('status') ?? 'active', (e) => update('status', e.target.value)),
+    select('priority', [['', 'Any priority'], ...PRIORITIES.map((p) => [p, label(p)])], query.priority, (e) => update('priority', e.target.value)),
+    select('device_id', [['', 'Any device'], ...devices.map((d) => [d.id, d.name])], query.device_id, (e) => update('device_id', e.target.value)),
+    tags.length > 0 && select('tag', [['', 'Any tag'], ...tags.map((t) => [t.name, `${t.name} (${t.ticket_count})`])], query.tag, (e) => update('tag', e.target.value)),
+    el('button', { class: 'btn btn-sm', onclick: guard(() => saveCurrentView(Object.fromEntries(params))) }, 'Save view…'),
+    exportLinks('tickets'),
+  );
+  const filterButton = el('button', {
+    class: 'btn', type: 'button', 'aria-controls': 'task-filters', 'aria-expanded': 'false',
+    onclick: () => {
+      advancedFilters.hidden = !advancedFilters.hidden;
+      filterButton.setAttribute('aria-expanded', String(!advancedFilters.hidden));
+    },
+  }, 'Filters ▾');
+  advancedFilters.hidden = !['priority', 'device_id', 'tag', 'status'].some((key) => query[key] && query[key] !== settings?.status);
+  filterButton.setAttribute('aria-expanded', String(!advancedFilters.hidden));
 
   view.append(
     el(
@@ -778,7 +759,7 @@ async function renderTickets(view, query, list) {
         el(
           'h1',
           {},
-          searching ? 'Search all tasks' : list ? label(list) : 'Tasks',
+          searching ? 'Search all tasks' : list === 'inbox' ? 'Inbox' : 'Tasks',
         ),
         el(
           'p',
@@ -787,60 +768,20 @@ async function renderTickets(view, query, list) {
             ? 'Results include Inbox, Next, Someday, and Done.'
             : (settings?.hint ?? 'Your tasks, filtered to this view.'),
         ),
-        el(
-          'p',
-          {},
-          `${tickets.length} ${tickets.length === 1 ? 'task' : 'tasks'}`,
-          exportLinks('tickets'),
-        ),
       ),
     ),
+    ...(list === 'inbox' ? [] : [el(
+      'nav',
+      { class: 'task-list-nav', 'aria-label': 'Task lists' },
+      ...['next', 'someday', 'done', 'all'].map((name) =>
+        el('a', { href: `#/${name}`, class: name === (list ?? 'all') ? 'active' : '' }, label(name)),
+      ),
+    )]),
     el(
       'div',
-      { class: 'filters' },
+      { class: 'filters task-toolbar' },
       search,
-      list !== 'done' &&
-        !searching &&
-        select(
-          'status',
-          settings?.queue
-            ? [
-                ['active', 'Any progress'],
-                ...TICKET_STATUSES.filter(
-                  (s) => !['resolved', 'closed'].includes(s),
-                ).map((s) => [s, label(s)]),
-              ]
-            : [
-                ['active', 'Active'],
-                ['all', 'All statuses'],
-                ['done', 'Done'],
-                ...TICKET_STATUSES.map((s) => [s, label(s)]),
-              ],
-          params.get('status') ?? 'active',
-          (e) => update('status', e.target.value),
-        ),
-      select(
-        'priority',
-        [['', 'Any priority'], ...PRIORITIES.map((p) => [p, label(p)])],
-        query.priority,
-        (e) => update('priority', e.target.value),
-      ),
-      select(
-        'device_id',
-        [['', 'Any device'], ...devices.map((d) => [d.id, d.name])],
-        query.device_id,
-        (e) => update('device_id', e.target.value),
-      ),
-      tags.length > 0 &&
-        select(
-          'tag',
-          [
-            ['', 'Any tag'],
-            ...tags.map((t) => [t.name, `${t.name} (${t.ticket_count})`]),
-          ],
-          query.tag,
-          (e) => update('tag', e.target.value),
-        ),
+      filterButton,
       select(
         'sort',
         [
@@ -855,17 +796,10 @@ async function renderTickets(view, query, list) {
         (e) => update('sort', e.target.value),
       ),
     ),
-    el(
-      'div',
-      { class: 'planning-actions list-tools' },
-      el(
-        'button',
-        {
-          class: 'btn btn-sm',
-          onclick: guard(() => saveCurrentView(Object.fromEntries(params))),
-        },
-        'Save this view…',
-      ),
+    advancedFilters,
+    el('div', { class: 'task-count-row' },
+      el('span', {}, `${tickets.length} ${tickets.length === 1 ? 'task' : 'tasks'}${list ? ` in ${label(list)}` : ''}`),
+      el('span', {}, searching ? 'Search results' : list === 'done' ? 'Completed work' : list === 'all' ? 'All statuses' : 'Showing active work'),
     ),
     tickets.length === 0
       ? el(
@@ -874,13 +808,21 @@ async function renderTickets(view, query, list) {
           el(
             'strong',
             {},
-            list === 'inbox' && !searching
-              ? 'Your inbox is clear'
-              : 'No tasks match',
+            searching || Object.keys(query).some((key) => !['sort'].includes(key))
+              ? 'No tasks match'
+              : list === 'inbox'
+                ? 'Your inbox is clear'
+                : list === 'next'
+                  ? 'Nothing in Next'
+                  : list === 'someday'
+                    ? 'Nothing saved for Someday'
+                    : list === 'done'
+                      ? 'Nothing done yet'
+                      : 'No tasks yet',
           ),
           'Add a task whenever something comes to mind, or adjust the filters.',
         )
-      : bulkList(tickets),
+      : bulkList(tickets, list ?? 'tickets'),
   );
 }
 
@@ -889,7 +831,7 @@ async function renderTickets(view, query, list) {
  * act on all of them at once — close them, resolve them, or tag them — which
  * beats opening twelve tickets to do the same thing twelve times.
  */
-function bulkList(tickets) {
+function bulkList(tickets, list) {
   const selected = new Set();
 
   const bar = el('div', { class: 'bulk-bar', hidden: true });
@@ -1019,12 +961,12 @@ function bulkList(tickets) {
     el(
       'div',
       { class: 'ticket-list' },
-      ...tickets.map((t) => ticketRow(t, onToggle)),
+      ...tickets.map((t) => ticketRow(t, onToggle, list)),
     ),
   );
 }
 
-function ticketRow(ticket, onToggle) {
+function ticketRow(ticket, onToggle, list) {
   const checkbox =
     onToggle &&
     el('input', {
@@ -1052,33 +994,40 @@ function ticketRow(ticket, onToggle) {
       'div',
       { class: 'main' },
       el('a', { class: 'title', href: `#/tickets/${ticket.id}` }, ticket.title),
-      el(
-        'div',
-        { class: 'sub' },
-        el('span', { class: 'id' }, `#${ticket.id}`),
-        el(
-          'span',
-          { class: 'badge queue-badge' },
-          ticket.is_open ? label(ticket.queue) : 'Done',
-        ),
-        statusBadge(ticket.status),
-        priorityBadge(ticket.priority),
-        choreAssigneeBadge(ticket),
-        ticket.device_name && el('span', {}, `· ${ticket.device_name}`),
-        ticket.due_date &&
-          el(
-            'span',
-            { class: isOverdue(ticket) ? 'overdue' : '' },
-            `· due ${ticket.due_date}`,
+      list
+        ? el('div', { class: 'sub compact-task-meta' },
+            ...[
+              (list === 'all' || list === 'tickets') && (ticket.is_open ? label(ticket.queue) : 'Done'),
+              ticket.device_name,
+              `${label(ticket.priority)} priority`,
+              ticket.status !== 'open' && label(ticket.status),
+              ticket.today_rank !== null && 'Today',
+              ticket.due_date && (ticket.due_date === planningDate ? 'Due today' : `Due ${shortDate(ticket.due_date)}`),
+              ticket.waiting_on && `Waiting on ${ticket.waiting_on}`,
+              ticket.is_chore && (ticket.assignee_name ? `Assigned to ${ticket.assignee_name}` : 'Chore'),
+              ...ticket.tags,
+            ].filter(Boolean).map((text) => el('span', {}, text)),
+          )
+        : el(
+            'div',
+            { class: 'sub' },
+            el('span', { class: 'id' }, `#${ticket.id}`),
+            el('span', { class: 'badge queue-badge' }, ticket.is_open ? label(ticket.queue) : 'Done'),
+            statusBadge(ticket.status),
+            priorityBadge(ticket.priority),
+            choreAssigneeBadge(ticket),
+            ticket.device_name && el('span', {}, `· ${ticket.device_name}`),
+            ticket.due_date && el('span', { class: isOverdue(ticket) ? 'overdue' : '' }, `· due ${ticket.due_date}`),
+            ticket.comment_count > 0 && el('span', {}, `· ${ticket.comment_count} 💬`),
+            ...planningBadges(ticket),
+            ...ticket.tags.map((tag) => el('span', { class: 'tag' }, tag)),
           ),
-        ticket.comment_count > 0 &&
-          el('span', {}, `· ${ticket.comment_count} 💬`),
-        ...planningBadges(ticket),
-        ...ticket.tags.map((tag) => el('span', { class: 'tag' }, tag)),
-      ),
     ),
     el('span', { class: 'meta muted' }, relativeTime(ticket.updated_at)),
-    onToggle && taskActions(ticket),
+    onToggle && el('details', { class: 'ticket-actions', onclick: (event) => event.stopPropagation() },
+      el('summary', {}, 'Actions'),
+      taskActions(ticket),
+    ),
   );
 }
 
@@ -2566,7 +2515,7 @@ const SHORTCUTS = [
 const GO_TO = {
   d: '#/dashboard',
   t: '#/all',
-  i: '#/',
+  i: '#/inbox',
   v: '#/devices',
   s: '#/schedules',
 };
@@ -2694,18 +2643,19 @@ function installShortcuts() {
 const ROUTES = [
   ...captureRoutes,
   ...planningRoutes,
-  [/^\/?$/, (view, query) => renderTickets(view, query, 'inbox'), 'inbox'],
-  [/^\/next$/, (view, query) => renderTickets(view, query, 'next'), 'next'],
+  [/^\/?$/, renderDashboard, 'dashboard'],
+  [/^\/inbox$/, (view, query) => renderTickets(view, query, 'inbox'), 'inbox'],
+  [/^\/next$/, (view, query) => renderTickets(view, query, 'next'), 'tasks'],
   [
     /^\/someday$/,
     (view, query) => renderTickets(view, query, 'someday'),
-    'someday',
+    'tasks',
   ],
-  [/^\/done$/, (view, query) => renderTickets(view, query, 'done'), 'done'],
-  [/^\/all$/, (view, query) => renderTickets(view, query, 'all'), 'all'],
+  [/^\/done$/, (view, query) => renderTickets(view, query, 'done'), 'tasks'],
+  [/^\/all$/, (view, query) => renderTickets(view, query, 'all'), 'tasks'],
   [/^\/dashboard$/, renderDashboard, 'dashboard'],
-  [/^\/tickets\/(\d+)$/, renderTicketDetail, 'tickets'],
-  [/^\/tickets$/, renderTickets, 'tickets'],
+  [/^\/tickets\/(\d+)$/, renderTicketDetail, 'tasks'],
+  [/^\/tickets$/, renderTickets, 'tasks'],
   [/^\/devices\/(\d+)$/, renderDeviceDetail, 'devices'],
   [/^\/devices$/, renderDevices, 'devices'],
   [/^\/schedules\/(\d+)$/, renderScheduleDetail, 'schedules'],
@@ -2730,6 +2680,7 @@ async function render() {
   for (const link of document.querySelectorAll('nav [data-tab]')) {
     link.classList.toggle('active', link.dataset.tab === (match?.[2] ?? ''));
   }
+  document.querySelector('.more-nav')?.removeAttribute('open');
 
   const next = document.createElement('main');
   next.id = 'view';

@@ -11,6 +11,48 @@ export function setupCapture(context) {
   ui = context;
 }
 export { clearDrafts };
+/** Keep the dashboard's one-field capture on the same draft and retry path. */
+export async function saveQuickCapture(value) {
+  const title = String(value).trim().slice(0, 200);
+  if (!title) throw new Error('Give your task a title.');
+  const id = crypto.randomUUID();
+  const draft = {
+    id,
+    title,
+    body: '',
+    project_id: null,
+    device_id: null,
+    tags: '',
+    priority: 'medium',
+    due_date: '',
+    files: [],
+    updated_at: new Date().toISOString(),
+    payload: {
+      title,
+      body: '',
+      queue: 'inbox',
+      priority: 'medium',
+      due_date: null,
+      tags: [],
+      project_id: null,
+      device_id: null,
+    },
+  };
+  await putDraft(draft);
+  if (!navigator.onLine) return { draftId: id };
+  try {
+    const ticket = await fetch('/api/tickets', {
+      method: 'POST',
+      signal: AbortSignal.timeout(15000),
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': id },
+      body: JSON.stringify(draft.payload),
+    }).then(response);
+    await deleteDraft(id);
+    return { ticketId: ticket.id };
+  } catch {
+    return { draftId: id };
+  }
+}
 const TYPES = {
   png: 'image/png',
   jpg: 'image/jpeg',

@@ -95,6 +95,10 @@ after reconnecting. Drafts are not included in server backups.
 See [Planning and iPhone capture](docs/planning.md) for the workflows, new API
 surface, recurrence behavior, and installation/upgrade checks.
 
+For proposed next steps and recommended priorities, see the
+[Practical feature roadmap](docs/feature-roadmap.md). It is a proposal for review,
+not a list of shipped features.
+
 **Tickets** carry a status (`open`, `in_progress`, `blocked`, `resolved`,
 `closed`), a priority, optional tags, an optional due date, reference links,
 file attachments, and a comment thread for notes as you work the problem. Every

@@ -181,13 +181,11 @@ test('reopening and recompleting a calendar routine does not skip its next occur
 });
 
 test('chore recurrence commits only the next known weekly occurrence after completion', (t) => {
+  const today = '2026-09-22'; // Tuesday: completion follows the Sunday assignment.
+  t.mock.timers.enable({ apis: ['Date'], now: new Date(`${today}T12:00:00Z`) });
   const db = database(t);
   configureDates(db, 'UTC');
-  const today = new Date().toISOString().slice(0, 10);
-  const weekStart = addDays(
-    today,
-    -new Date(`${today}T12:00:00Z`).getUTCDay(),
-  );
+  const weekStart = '2026-09-20';
   const schedule = createSchedule(db, {
     title: 'Wipe counters',
     is_chore: true,

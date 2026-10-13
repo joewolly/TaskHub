@@ -1,4 +1,4 @@
-import { getDraft, putDraft, deleteDraft } from './draft-store.js';
+import { getDraft, putBatchDraft, deleteDraft } from './draft-store.js';
 import {
   newBatch, previewRows, titleError, batchCounts, submitBatch, MAX_BATCH_ROWS,
 } from './paste-tasks.js';
@@ -16,7 +16,7 @@ export async function renderPasteCapture(view, query, ui, { setPending, response
     return;
   }
   if (!query.draft) {
-    await putDraft(draft);
+    draft.revision = await putBatchDraft(draft, { create: true });
     history.replaceState(null, '', `${location.pathname}${location.search}#/paste?draft=${draft.id}`);
   }
   let busy = false, saving = Promise.resolve();
@@ -28,14 +28,19 @@ export async function renderPasteCapture(view, query, ui, { setPending, response
   const persist = () => {
     draft.updated_at = new Date().toISOString();
     const snapshot = structuredClone(draft);
-    saving = saving.catch(() => {}).then(() => putDraft(snapshot)).catch(() => {
+    saving = saving.catch(() => {}).then(async () => {
+      // Queued edits use the revision from the preceding committed write.
+      snapshot.revision = draft.revision ?? 0;
+      draft.revision = await putBatchDraft(snapshot);
+    }).catch((error) => {
+      if (error.name === 'DraftConflictError') throw error;
       throw new Error('Could not save on this device. Keep this page open and free some storage before continuing.');
     });
     return saving;
   };
   const saveEdit = () => persist().then(
     () => tell(navigator.onLine ? 'Saved on this device' : 'Offline · saved on this device'),
-    () => tell('Could not save on this device. Keep this page open and free some storage before continuing.', true),
+    (error) => tell(error.message, true),
   );
   const source = el('textarea', {
     name: 'task-list', placeholder: 'Buy groceries\n• Call the dentist\n3. Replace the filter',

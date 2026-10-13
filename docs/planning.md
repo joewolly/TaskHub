@@ -210,6 +210,10 @@ After a connection loss, reload, or expired session, sign in if needed and choos
 **Resume remaining tasks** to recover uncertain rows without creating duplicates.
 Identical titles remain separate tasks when selected as separate rows.
 
+If another tab changes or discards the same list, stale writes are rejected
+before submission. Copy any unsaved edits and reload to recover the latest
+progress; a stale tab cannot replace a started row's frozen contents.
+
 Saved, pending, excluded, and retry-needed rows are shown individually. Discarding
 the remainder or clearing the local list retains all tasks already saved, including
 an unconfirmed response that reached the server. Completed lists remain in Drafts

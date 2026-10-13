@@ -24,7 +24,7 @@ export function titleError(title) {
 
 export function newBatch(id = crypto.randomUUID()) {
   return {
-    id, kind: 'paste-tasks', version: 1, stage: 'input', source: '', rows: [],
+    id, kind: 'paste-tasks', version: 1, revision: 0, stage: 'input', source: '', rows: [],
     updated_at: new Date().toISOString(),
   };
 }

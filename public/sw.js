@@ -1,9 +1,11 @@
-const CACHE = 'taskhub-capture-v7';
+const CACHE = 'taskhub-capture-v8';
 const ASSETS = [
   '/capture.html',
   '/app.js',
   '/planning.js',
   '/capture.js',
+  '/paste-capture.js',
+  '/paste-tasks.js',
   '/sw-update.js',
   '/draft-store.js',
   '/styles.css',

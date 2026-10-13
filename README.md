@@ -74,6 +74,11 @@ Existing tasks require a connection to the server. New capture drafts and their
 attachments can be saved on the device while offline and submitted explicitly
 after reconnecting. Drafts are not included in server backups.
 
+Choose **Paste as tasks** from Capture or Drafts to turn a list into up to 50
+Inbox tasks. Preview, edit, remove, or exclude rows before saving; blank lines
+and simple bullets/numbers are handled without inferring dates or priorities.
+The list stays on this device and can safely resume after an interrupted save.
+
 ## Daily planning
 
 - **Today** is your ordered focus list. Selections stay until completed or

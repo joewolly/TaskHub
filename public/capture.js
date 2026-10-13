@@ -5,6 +5,8 @@ import {
   deleteDraft,
   clearDrafts,
 } from './draft-store.js';
+import { renderPasteCapture } from './paste-capture.js';
+import { batchCounts } from './paste-tasks.js';
 let ui;
 export let pendingCaptureHash = null;
 export function setupCapture(context) {
@@ -92,6 +94,10 @@ export async function renderCapture(view, query = {}) {
   const { el, field, select, guard } = ui;
   view.classList.add('capture-page');
   let draft = query.draft ? await getDraft(query.draft) : null;
+  if (draft?.kind === 'paste-tasks') {
+    history.replaceState(null, '', `${location.pathname}${location.search}#/paste?draft=${draft.id}`);
+    return renderPaste(view, { draft: draft.id });
+  }
   if (query.draft && !draft) {
     view.append(
       el('h1', {}, 'Draft no longer available'),
@@ -530,6 +536,7 @@ export async function renderCapture(view, query = {}) {
         el('h1', {}, 'Capture a task'),
         el('p', {}, 'Write it down now. Sort it out later.'),
       ),
+      el('a', { class: 'btn', href: '#/paste' }, 'Paste as tasks'),
     ),
     el(
       'p',
@@ -584,6 +591,7 @@ export async function renderDrafts(view) {
         el('p', {}, 'Saved on this device. Submit when connected.'),
       ),
       el('a', { class: 'btn btn-primary', href: '#/capture' }, 'New draft'),
+      el('a', { class: 'btn', href: '#/paste' }, 'Paste as tasks'),
     ),
     ...drafts.map((draft) =>
       el(
@@ -591,20 +599,22 @@ export async function renderDrafts(view) {
         { class: 'card planning-card' },
         el(
           'a',
-          { href: `#/capture?draft=${draft.id}` },
-          el('h2', {}, draft.title || 'Untitled draft'),
+          { href: `#/${draft.kind === 'paste-tasks' ? 'paste' : 'capture'}?draft=${draft.id}` },
+          el('h2', {}, draft.kind === 'paste-tasks' ? 'Pasted task list' : draft.title || 'Untitled draft'),
         ),
         el(
           'p',
           { class: 'muted' },
-          `${draft.files.length} files · ${draft.ticket_id ? 'Task saved; uploads pending' : draft.payload ? 'Submission started; safe to retry' : 'Not submitted'}`,
+          draft.kind === 'paste-tasks'
+            ? `${batchCounts(draft).saved} saved · ${batchCounts(draft).pending} pending · ${draft.stage === 'input' ? 'Not previewed' : 'Resume or edit remaining tasks'}`
+            : `${draft.files?.length || 0} files · ${draft.ticket_id ? 'Task saved; uploads pending' : draft.payload ? 'Submission started; safe to retry' : 'Not submitted'}`,
         ),
         el(
           'div',
           { class: 'planning-actions' },
           el(
             'a',
-            { class: 'btn', href: `#/capture?draft=${draft.id}` },
+            { class: 'btn', href: `#/${draft.kind === 'paste-tasks' ? 'paste' : 'capture'}?draft=${draft.id}` },
             'Continue',
           ),
           el(
@@ -630,8 +640,15 @@ export async function renderDrafts(view) {
     view.append(el('div', { class: 'empty-state' }, 'No local drafts.'));
 }
 
+export async function renderPaste(view, query = {}) {
+  return renderPasteCapture(view, query, ui, {
+    setPending: (hash) => { pendingCaptureHash = hash; }, response,
+  });
+}
+
 export const captureRoutes = [
   [/^\/capture$/, renderCapture, 'capture'],
+  [/^\/paste$/, renderPaste, 'capture'],
   [/^\/drafts$/, renderDrafts, 'drafts'],
 ];
 

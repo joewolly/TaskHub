@@ -2771,7 +2771,7 @@ setupPlanning({
 setupCapture({ el, api, guard, field, select, render });
 if (
   document.body.dataset.captureShell &&
-  !/^#\/(capture|drafts)(\?|$)/.test(location.hash)
+  !/^#\/(capture|paste|drafts)(\?|$)/.test(location.hash)
 )
   history.replaceState(null, '', location.pathname + '#/capture');
 if ('serviceWorker' in navigator)
@@ -2787,7 +2787,7 @@ render();
 async function refreshDay() {
   if (
     document.visibilityState !== 'visible' ||
-    /^#\/(capture|drafts)/.test(location.hash) ||
+    /^#\/(capture|paste|drafts)/.test(location.hash) ||
     document.querySelector('#modal-root form') ||
     document.activeElement?.matches('input, textarea, select')
   )

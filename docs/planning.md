@@ -192,6 +192,35 @@ local draft or retry uploads; the saved task is retained.
 
 Sign-out offers an explicit choice to clear local drafts or keep them.
 
+### Paste a list into Inbox
+
+Choose **Paste as tasks** in Capture or Drafts. Paste one task per nonempty line;
+simple leading bullets (`-`, `*`, `+`, `•`) or numbers (`1.` / `1)`) are removed.
+Preview up to 50 tasks, edit their titles, remove or exclude rows, then explicitly
+save the selected tasks to **Inbox** in the pasted order. Titles must be 200
+characters or fewer. Lists over 50 rows or 20,000 characters are flagged for
+editing; rows and titles are never silently truncated. Ordinary notes paste and
+single-task capture keep their existing behavior.
+
+The pasted list, preview edits, exclusions, and progress are device-local drafts.
+Canceling before submission creates no server tasks. Tasks save one at a time;
+after a failure, saved rows are retained and later unstarted rows remain editable.
+A row whose submission started is held steady until its response is recovered.
+After a connection loss, reload, or expired session, sign in if needed and choose
+**Resume remaining tasks** to recover uncertain rows without creating duplicates.
+Identical titles remain separate tasks when selected as separate rows.
+
+If another tab changes or discards the same list, stale writes are rejected
+before submission. Copy any unsaved edits and reload to recover the latest
+progress; a stale tab cannot replace a started row's frozen contents.
+
+Saved, pending, excluded, and retry-needed rows are shown individually. Discarding
+the remainder or clearing the local list retains all tasks already saved, including
+an unconfirmed response that reached the server. Completed lists remain in Drafts
+until cleared. Lists do not submit automatically on reconnect and do not include
+attachments, inferred task details, or a bulk API endpoint. Older single drafts
+continue to use their existing submission and attachment recovery flow.
+
 ## API additions
 
 Existing endpoints and queue/status values remain valid. New fields default to

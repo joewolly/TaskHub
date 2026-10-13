@@ -12,7 +12,9 @@ import { createTicket, updateTicket } from '../src/api/tickets.js';
 import { configureDates } from '../src/dates.js';
 import { syncRecurrence } from '../src/recurrence.js';
 
-function database(t, timeZone = 'UTC') {
+function database(t, timeZone = 'UTC', now = '2030-01-01T12:00:00Z') {
+  // Completion skips historical dates using the JS clock, so fixtures need a fixed now.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse(now) });
   const db = openDatabase(':memory:');
   configureDates(db, timeZone);
   t.after(() => db.close());
@@ -355,7 +357,7 @@ test('chore time zones are fixed to the app zone while ordinary routines keep cu
 });
 
 test('chore materialization uses the app-zone date at the Sunday boundary', (t) => {
-  const db = database(t, 'America/Los_Angeles');
+  const db = database(t, 'America/Los_Angeles', '2026-09-20T06:59:59Z');
   const chore = createSchedule(db, {
     title: 'Saturday chore',
     is_chore: true,
@@ -363,6 +365,12 @@ test('chore materialization uses the app-zone date at the Sunday boundary', (t) 
     recurrence: { kind: 'weekly', weekdays: [6] },
   });
   assert.equal(chore.time_zone, 'America/Los_Angeles');
+  const sundayChore = createSchedule(db, {
+    title: 'Sunday chore',
+    is_chore: true,
+    next_due: '2026-09-20',
+    recurrence: { kind: 'weekly', weekdays: [0] },
+  });
 
   // Simulate a legacy row created before chore time zones were constrained.
   db.prepare('UPDATE schedules SET time_zone = ? WHERE id = ?').run(
@@ -370,22 +378,27 @@ test('chore materialization uses the app-zone date at the Sunday boundary', (t) 
     chore.id,
   );
 
-  const RealDate = globalThis.Date;
-  const frozenNow = RealDate.parse('2026-09-20T06:59:00Z'); // Saturday 23:59 in Los Angeles
-  globalThis.Date = class extends RealDate {
-    constructor(...args) {
-      super(...(args.length ? args : [frozenNow]));
-    }
+  const saturday = runSchedules(db);
+  assert.deepEqual(saturday.map(({ schedule_id }) => schedule_id), [chore.id]);
+  const created = saturday[0].ticket;
+  assert.equal(created.original_due_date, '2026-09-19');
+  assert.equal(getChoreRoster(db).week_start, '2026-09-13');
 
-    static now() {
-      return frozenNow;
-    }
-  };
-  try {
-    const [created] = runSchedules(db);
-    assert.equal(created.schedule_id, chore.id);
-    assert.equal(created.ticket.original_due_date, '2026-09-19');
-  } finally {
-    globalThis.Date = RealDate;
-  }
+  // The next week's chore becomes eligible at local midnight, seven hours after UTC's.
+  t.mock.timers.setTime(Date.parse('2026-09-20T07:00:00Z'));
+  const sunday = runSchedules(db);
+  assert.deepEqual(sunday.map(({ schedule_id }) => schedule_id), [sundayChore.id]);
+  assert.equal(sunday[0].ticket.original_due_date, '2026-09-20');
+  const roster = getChoreRoster(db);
+  assert.equal(roster.week_start, '2026-09-20');
+  assert.deepEqual(
+    roster.assignments.map(({ id, assignee_id, original_due_date }) => ({
+      id, assignee_id, original_due_date,
+    })),
+    [created, sunday[0].ticket].map(({ id, assignee_id, original_due_date }) => ({
+      id, assignee_id, original_due_date,
+    })),
+    'the overdue Saturday assignment carries over with its original owner and date',
+  );
+  assert.equal(runSchedules(db).length, 0);
 });

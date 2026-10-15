@@ -28,9 +28,54 @@ export function setupMobile() {
     }
   }
   const floating = document.createElement('a');
-  floating.href = '/capture.html#/capture'; floating.className = 'mobile-add btn btn-primary';
-  floating.textContent = '+ Add task'; document.body.append(floating);
+  floating.href = '#/capture'; floating.className = 'mobile-add btn btn-primary';
+  floating.textContent = '+ Add'; floating.setAttribute('aria-label', 'Add task');
+  document.querySelector('.topbar')?.append(floating);
   if (document.body.dataset.captureShell) floating.remove();
+  const morePanel = tabs?.querySelector('.more-nav');
+  const moreMenu = morePanel?.querySelector('.more-nav-items');
+  const moreTrigger = morePanel?.querySelector('summary');
+  const scrim = document.createElement('button');
+  scrim.className = 'mobile-menu-scrim'; scrim.hidden = true;
+  scrim.tabIndex = -1; scrim.setAttribute('aria-label', 'Close More');
+  scrim.onclick = () => { morePanel.open = false; };
+  (document.querySelector('.topbar') || document.body).append(scrim);
+  const closeMenu = document.createElement('button');
+  closeMenu.type = 'button'; closeMenu.className = 'mobile-menu-close'; closeMenu.textContent = 'Done';
+  closeMenu.onclick = () => { morePanel.open = false; };
+  moreMenu?.prepend(closeMenu);
+  let menuActive = false;
+  const phone = matchMedia('(max-width: 760px)');
+  const updateMenu = () => {
+    const open = !!morePanel?.open && phone.matches;
+    scrim.hidden = !open;
+    document.body.classList.toggle('mobile-menu-open', open);
+    document.getElementById('view')?.toggleAttribute('inert', open);
+    floating.toggleAttribute('inert', open);
+    tabs?.querySelectorAll(':scope > a').forEach(link => link.toggleAttribute('inert', open));
+    if (open) {
+      moreMenu.setAttribute('role', 'dialog');
+      moreMenu.setAttribute('aria-modal', 'true');
+      moreMenu.setAttribute('aria-label', 'More');
+      if (!menuActive) closeMenu.focus({ preventScroll: true });
+    } else {
+      moreMenu?.removeAttribute('role'); moreMenu?.removeAttribute('aria-modal');
+      if (menuActive) moreTrigger.focus({ preventScroll: true });
+    }
+    menuActive = open;
+  };
+  morePanel?.addEventListener('toggle', updateMenu);
+  phone.addEventListener('change', updateMenu);
+  document.addEventListener('keydown', event => {
+    if (!morePanel?.open || !phone.matches) return;
+    if (event.key === 'Escape') { event.preventDefault(); morePanel.open = false; }
+    if (event.key === 'Tab') {
+      const controls = [...moreMenu.querySelectorAll('a, button')].filter(n => n.getClientRects().length && !n.disabled);
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+  });
   const positions = new Map(); let previous = location.hash, navigating = false;
   addEventListener('scroll', () => { if (!navigating) positions.set(previous, scrollY); }, { passive: true });
   addEventListener('hashchange', () => {
@@ -40,6 +85,17 @@ export function setupMobile() {
     navigating = true; previous = location.hash;
   });
   addEventListener('taskhub-render', () => {
+    const capture = /^#\/(capture|paste)(\?|$)/.test(location.hash);
+    document.body.classList.toggle('mobile-capturing', capture);
+    floating.hidden = capture;
+    const title = document.querySelector('.dashboard-head h1');
+    if (title) title.textContent = phone.matches ? 'Home' : 'Dashboard';
+    // Capture stays in the installed app and has an explicit way back.
+    if (capture && !document.querySelector('#view > .capture-back')) {
+      const back = document.createElement('a'); back.className = 'back-link capture-back';
+      back.href = document.body.dataset.captureShell ? '/#/' : '#/'; back.textContent = '‹ Home';
+      document.getElementById('view')?.prepend(back);
+    }
     scrollTo(0, positions.get(location.hash) || 0);
     navigating = false;
     const active = tabs?.querySelector('a.active');
@@ -49,11 +105,13 @@ export function setupMobile() {
     tabs?.querySelector('summary')?.classList.toggle('active', !isMain);
   });
   const viewport = () => {
-    const keyboard = !!visualViewport && innerHeight - visualViewport.height > 140;
+    const keyboard = !!window.visualViewport && innerHeight - window.visualViewport.height > 140;
     document.body.classList.toggle('keyboard-open', keyboard);
-    document.documentElement.style.setProperty('--visible-height', `${visualViewport?.height || innerHeight}px`);
+    document.documentElement.style.setProperty('--visible-height', `${window.visualViewport?.height || innerHeight}px`);
+    document.documentElement.style.setProperty('--visible-top', `${window.visualViewport?.offsetTop || 0}px`);
   };
-  visualViewport?.addEventListener('resize', viewport); viewport();
+  window.visualViewport?.addEventListener('resize', viewport);
+  window.visualViewport?.addEventListener('scroll', viewport); viewport();
   const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   if (!installed && /iPhone|iPad/.test(navigator.userAgent) && !localStorage.getItem('taskhub-install-dismissed')) {
     const tip = document.createElement('aside'); tip.className = 'install-tip';

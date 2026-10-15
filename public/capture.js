@@ -400,6 +400,7 @@ export async function renderCapture(view, query = {}) {
     'a',
     {
       class: 'btn',
+      hidden: true,
       href: '/login',
       onclick: () =>
         sessionStorage.setItem(
@@ -543,7 +544,7 @@ export async function renderCapture(view, query = {}) {
       el(
         'div',
         {},
-        el('h1', {}, 'Capture a task'),
+        el('h1', {}, 'New task'),
         el('p', {}, 'Write it down now. Sort it out later.'),
       ),
       el('a', { class: 'btn', href: '#/paste' }, 'Paste as tasks'),
@@ -551,7 +552,7 @@ export async function renderCapture(view, query = {}) {
     el(
       'p',
       { class: 'draft-notice' },
-      'Drafts are stored on this device until submitted. They are not part of your server backup.',
+      'Your draft stays on this device until you save it to Inbox.',
     ),
     form,
     el(

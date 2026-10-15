@@ -413,6 +413,7 @@ const prose = (text, extraClass = '') =>
 function openModal(title, buildBody, onSubmit) {
   const root = document.getElementById('modal-root');
   const previousFocus = document.activeElement;
+  const background = [...document.querySelectorAll('.topbar, #view')].map(node => [node, node.inert]);
   let saving = false;
   let dirty = false;
   const form = el('form', {
@@ -427,6 +428,7 @@ function openModal(title, buildBody, onSubmit) {
     if (saving) return;
     if (dirty && !confirm('Discard unsaved changes?')) return;
     root.innerHTML = '';
+    background.forEach(([node, wasInert]) => { node.inert = wasInert; });
     removeEventListener('beforeunload', beforeUnload);
     document.removeEventListener('keydown', onKey);
     previousFocus?.focus();
@@ -455,8 +457,8 @@ function openModal(title, buildBody, onSubmit) {
   };
 
   form.append(
-    el('h2', {}, title),
-    buildBody(),
+    el('header', { class: 'modal-heading' }, el('h2', {}, title)),
+    el('div', { class: 'modal-body' }, buildBody()),
     el(
       'div',
       { class: 'modal-actions' },
@@ -464,6 +466,8 @@ function openModal(title, buildBody, onSubmit) {
       el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save'),
     ),
   );
+  // Keep the same controls and form semantics at every size; CSS places the
+  // actions in a phone navigation bar without duplicating submit buttons.
 
   form.addEventListener('input', () => { dirty = true; });
   form.addEventListener('submit', async (event) => {
@@ -506,7 +510,11 @@ function openModal(title, buildBody, onSubmit) {
 
   root.innerHTML = '';
   root.append(backdrop);
-  form.querySelector('input, textarea, select')?.focus();
+  background.forEach(([node]) => { node.inert = true; });
+  if (matchMedia('(max-width: 760px)').matches) {
+    form.tabIndex = -1;
+    form.focus({ preventScroll: true });
+  } else form.querySelector('input, textarea, select')?.focus();
 }
 
 /** Splits the comma-separated tag input into the array the API expects. */
@@ -737,6 +745,7 @@ async function renderTickets(view, query, list) {
   }, 'Filters ▾');
   advancedFilters.hidden = !['priority', 'device_id', 'tag', 'status'].some((key) => query[key] && query[key] !== settings?.status);
   filterButton.setAttribute('aria-expanded', String(!advancedFilters.hidden));
+  const selectionToggle = el('button', { type: 'button', class: 'mobile-selection-toggle', 'aria-pressed': 'false', hidden: tickets.length === 0 }, 'Select');
 
   view.append(
     el(
@@ -789,6 +798,7 @@ async function renderTickets(view, query, list) {
     el('div', { class: 'task-count-row' },
       el('span', {}, `${tickets.length} ${tickets.length === 1 ? 'task' : 'tasks'}${list ? ` in ${label(list)}` : ''}`),
       el('span', {}, searching ? 'Search results' : list === 'done' ? 'Completed work' : list === 'all' ? 'All statuses' : 'Showing active work'),
+      selectionToggle,
     ),
     tickets.length === 0
       ? el(
@@ -811,7 +821,7 @@ async function renderTickets(view, query, list) {
           ),
           'Add a task whenever something comes to mind, or adjust the filters.',
         )
-      : bulkList(tickets, list ?? 'tickets'),
+      : bulkList(tickets, list ?? 'tickets', selectionToggle),
   );
 }
 
@@ -820,7 +830,7 @@ async function renderTickets(view, query, list) {
  * act on all of them at once — close them, resolve them, or tag them — which
  * beats opening twelve tickets to do the same thing twelve times.
  */
-function bulkList(tickets, list) {
+function bulkList(tickets, list, selectionToggle) {
   const selected = new Set();
 
   const bar = el('div', { class: 'bulk-bar', hidden: true });
@@ -943,9 +953,9 @@ function bulkList(tickets, list) {
     refresh();
   };
 
-  return el(
+  const content = el(
     'div',
-    {},
+    { class: 'bulk-list' },
     bar,
     el(
       'div',
@@ -953,6 +963,18 @@ function bulkList(tickets, list) {
       ...tickets.map((t) => ticketRow(t, onToggle, list)),
     ),
   );
+  if (selectionToggle) selectionToggle.onclick = () => {
+    if (applying) return;
+    const selecting = content.classList.toggle('selecting');
+    selectionToggle.textContent = selecting ? 'Cancel selection' : 'Select';
+    selectionToggle.setAttribute('aria-pressed', String(selecting));
+    if (!selecting) {
+      selected.clear();
+      content.querySelectorAll('.row-select').forEach(control => { control.checked = false; });
+      refresh();
+    }
+  };
+  return content;
 }
 
 function ticketRow(ticket, onToggle, list) {
@@ -2665,6 +2687,10 @@ async function render() {
   const query = Object.fromEntries(new URLSearchParams(queryString));
 
   const view = document.getElementById('view');
+  view.setAttribute('aria-busy', 'true');
+  // A route may take a moment to load. Do not allow an action on the previous
+  // task while the URL already points to the next one.
+  view.inert = true;
   const match = ROUTES.map(([re, handler, tab]) => [
     re.exec(path),
     handler,
@@ -2678,6 +2704,7 @@ async function render() {
 
   const next = document.createElement('main');
   next.id = 'view';
+  next.dataset.route = path;
 
   try {
     if (!['capture', 'drafts', 'settings', 'sync'].includes(match?.[2])) await refreshPlanning();
@@ -2786,7 +2813,7 @@ installShortcuts();
 setupMobile();
 setupOffline();
 addEventListener('taskhub-synced', () => {
-  if (!document.body.dataset.captureShell && !document.querySelector('#modal-root form') && !document.activeElement?.matches('input, textarea, select') && !/^#\/(capture|drafts|mobile-settings)/.test(location.hash)) render();
+  if (!document.body.dataset.captureShell && !document.querySelector('#modal-root form, .more-nav[open], .bulk-list.selecting, .ticket-actions[open]') && !document.activeElement?.matches('input, textarea, select') && !/^#\/(capture|paste|drafts|mobile-settings)/.test(location.hash)) render();
 });
 initSession();
 render();

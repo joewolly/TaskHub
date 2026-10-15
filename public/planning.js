@@ -353,13 +353,13 @@ async function renderToday(view) {
           { class: 'focus-number' },
           String(index + 1).padStart(2, '0'),
         ),
-        el('div', { class: 'focus-content' }, ui.ticketRow(task)),
+        el('div', { class: 'focus-content' }, ui.ticketRow(task, null, 'today')),
         el(
           'div',
           { class: 'planning-actions' },
-          index > 0 && button('Move up', () => move(index, index - 1)),
+          index > 0 && button('Up', () => move(index, index - 1)),
           index < tasks.length - 1 &&
-            button('Move down', () => move(index, index + 1)),
+            button('Down', () => move(index, index + 1)),
           button('Done', () => patch(task.id, { status: 'resolved' }), true),
           button('Remove', () => patch(task.id, { today: false })),
         ),

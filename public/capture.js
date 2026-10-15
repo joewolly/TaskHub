@@ -1,3 +1,4 @@
+import { preparePhoto } from './photos.js';
 import {
   listDrafts,
   getDraft,
@@ -29,6 +30,7 @@ export async function saveQuickCapture(value) {
     due_date: '',
     files: [],
     updated_at: new Date().toISOString(),
+    autoSubmit: true,
     payload: {
       title,
       body: '',
@@ -289,12 +291,19 @@ export async function renderCapture(view, query = {}) {
   };
   view.dataset.captureId = draft.id;
   const files = el('ul', { class: 'draft-files' });
+  const previewFile = file => {
+    if (!file.type.startsWith('image/')) return null;
+    const image = el('img', { alt: file.name, class: 'attachment-preview' });
+    const reader = new FileReader(); reader.onload = () => { image.src = reader.result; };
+    reader.readAsDataURL(new Blob([file.bytes], { type: file.type })); return image;
+  };
   const drawFiles = () =>
     files.replaceChildren(
       ...draft.files.map((file) =>
         el(
           'li',
           {},
+          previewFile(file),
           el(
             'div',
             {},
@@ -311,7 +320,7 @@ export async function renderCapture(view, query = {}) {
               {
                 type: 'button',
                 class: 'btn btn-sm',
-                disabled: busy,
+                disabled: busy || !!draft.autoSubmit,
                 onclick: guard(async () => {
                   draft.files = draft.files.filter((f) => f.id !== file.id);
                   await persist();
@@ -328,7 +337,7 @@ export async function renderCapture(view, query = {}) {
     multiple: true,
     accept: Object.keys(TYPES)
       .map((t) => '.' + t)
-      .join(','),
+      .join(',') + ',image/*',
     'aria-label': 'Choose attachments',
   });
   picker.addEventListener(
@@ -340,7 +349,9 @@ export async function renderCapture(view, query = {}) {
       unlock();
       try {
         const rejected = [];
-        for (const file of picker.files) {
+        for (const original of picker.files) {
+          let file;
+          try { file = await preparePhoto(original); } catch (error) { rejected.push(error.message); continue; }
           const type = fileType(file);
           if (!Object.values(TYPES).includes(type)) {
             rejected.push(`${file.name}: unsupported type`);
@@ -380,7 +391,7 @@ export async function renderCapture(view, query = {}) {
   );
   const unlock = () => {
     fields.disabled = Boolean(draft.payload) || busy;
-    picker.disabled = busy;
+    picker.disabled = busy || !!draft.autoSubmit;
     submit.disabled = busy;
     submit.textContent = draft.payload ? 'Resume submission' : 'Save to Inbox';
     drawFiles();
@@ -432,10 +443,6 @@ export async function renderCapture(view, query = {}) {
         try {
           await saving;
           if (!draft.title.trim()) throw new Error('Give your task a title.');
-          if (!navigator.onLine)
-            throw new Error(
-              'Offline. Your draft is saved; submit when connected.',
-            );
           if (!draft.payload) {
             draft.payload = {
               title: draft.title,
@@ -452,6 +459,9 @@ export async function renderCapture(view, query = {}) {
             };
             await persist();
           }
+          draft.autoSubmit = true;
+          await persist();
+          if (!navigator.onLine) throw new Error('Saved offline. Open Task Hub when connected to send this task automatically.');
           tell('Saving task…');
           if (!draft.ticket_id) {
             const ticket = await fetch('/api/tickets', {

@@ -35,6 +35,9 @@ services:
       NOTIFY_TIMEOUT_MS: ${NOTIFY_TIMEOUT_MS:-}
       NOTIFY_REMINDER_DAYS: ${NOTIFY_REMINDER_DAYS:-}
       NOTIFY_DIGEST: ${NOTIFY_DIGEST:-}
+      WEB_PUSH_PUBLIC_KEY: ${WEB_PUSH_PUBLIC_KEY:-}
+      WEB_PUSH_PRIVATE_KEY: ${WEB_PUSH_PRIVATE_KEY:-}
+      WEB_PUSH_SUBJECT: ${WEB_PUSH_SUBJECT:-}
       # Separate volume, same server: this does not protect against host loss.
       BACKUP_DIR: ${BACKUP_DIR:-/backups}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}

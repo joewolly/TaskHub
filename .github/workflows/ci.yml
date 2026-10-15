@@ -30,8 +30,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      # No dependencies to install, so there is nothing to cache and no
-      # lockfile to audit — that is the whole point of the design.
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
       - name: Show versions
         run: node --version && npm --version
 
@@ -57,6 +57,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
 
       - name: Refuse to start without a password
         run: |

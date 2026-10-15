@@ -1,3 +1,5 @@
+import { saveSubscription, subscriptionSettings, removeSubscription, testPush, sweepPush } from './push.js';
+import { snapshot, applyOperation } from './api/sync.js';
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { projects, savedViews, checklist, orderToday } from './api/planning.js';
@@ -106,6 +108,14 @@ const SECURITY_HEADERS = {
  * and 200 for everything else.
  */
 const ROUTES = [
+  ['GET', '/api/push/config', ({ config }) => ({ enabled: !!config.push?.enabled, publicKey: config.push?.publicKey || '' })],
+  ['POST', '/api/push/subscriptions', ({ db, config, body }) => saveSubscription(db, config, body)],
+  ['GET', '/api/push/subscriptions/:subscriptionId', ({ db, params }) => subscriptionSettings(db, params.subscriptionId)],
+  ['PATCH', '/api/push/subscriptions/:subscriptionId', ({ db, params, body }) => subscriptionSettings(db, params.subscriptionId, body)],
+  ['DELETE', '/api/push/subscriptions/:subscriptionId', ({ db, params }) => removeSubscription(db, params.subscriptionId)],
+  ['POST', '/api/push/subscriptions/:subscriptionId/test', ({ db, config, params }) => testPush(db, config, params.subscriptionId), 200],
+  ['GET', '/api/sync/snapshot', ({ db }) => snapshot(db)],
+  ['POST', '/api/sync/operations', ({ db, body, notifier }) => applyOperation(db, body, notifier), 200],
   [
     'GET',
     '/api/planning',
@@ -505,6 +515,7 @@ function compile(pattern) {
   const names = [];
   const source = pattern.replace(/:(\w+)/g, (_, name) => {
     names.push(name);
+    if (name === 'subscriptionId') return '([a-f0-9-]{36})';
     return '(\\d+)';
   });
   return { regex: new RegExp(`^${source}$`), names };
@@ -521,7 +532,7 @@ function match(method, pathname) {
 
     const params = {};
     route.names.forEach((name, i) => {
-      params[name] = Number(result[i + 1]);
+      params[name] = name === 'subscriptionId' ? result[i + 1] : Number(result[i + 1]);
     });
     return { route, params };
   }
@@ -786,6 +797,12 @@ export function startMaintenance(db, config) {
         config.backup.intervalHours * 3600_000,
       ),
     );
+  }
+
+  if (config.push?.enabled) {
+    const pushTick = () => void sweepPush(db, config).catch(() => log.warn('push sweep failed'));
+    pushTick();
+    timers.push(setInterval(pushTick, 60000));
   }
 
   // Timers must not be what keeps the process alive; the listening socket is.

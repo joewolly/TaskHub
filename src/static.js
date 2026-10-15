@@ -22,7 +22,7 @@ const CONTENT_TYPES = {
  * client-side routes survive a refresh. Returns false if nothing was sent.
  */
 export async function serveStatic(req, res, pathname) {
-  const relative = pathname === '/' ? 'index.html' : pathname.slice(1);
+  const relative = pathname === '/' || pathname === '/app-shell.html' ? 'index.html' : pathname.slice(1);
 
   // normalize() resolves any ".." before we join, so a crafted path cannot
   // escape PUBLIC_DIR.

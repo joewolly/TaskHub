@@ -1,3 +1,7 @@
+import { offlineApi, setupOffline, offlineState, clearOffline, renderSync } from './offline.js';
+import { renderSettings } from './settings.js';
+import { preparePhoto } from './photos.js';
+import { setupMobile } from './mobile.js';
 /* Task Hub — single-page client, no build step, no dependencies. */
 import {
   setupPlanning,
@@ -64,29 +68,7 @@ const label = (value) => LABELS[value] ?? value;
 
 /* ---- API ---------------------------------------------------------------- */
 
-async function api(path, { method = 'GET', body } = {}) {
-  const res = await fetch(`/api${path}`, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  // The session expired or was revoked — bounce to the login page rather than
-  // leaving the user staring at errors on every panel.
-  if (res.status === 401) {
-    sessionStorage.setItem('taskhub-return', location.pathname + location.hash);
-    location.replace('/login');
-    throw new Error('Session expired');
-  }
-
-  if (res.status === 204) return null;
-
-  const payload = await res
-    .json()
-    .catch(() => ({ error: `HTTP ${res.status}` }));
-  if (!res.ok) throw new Error(payload.error ?? `HTTP ${res.status}`);
-  return payload;
-}
+const api = offlineApi;
 
 /* ---- DOM helpers -------------------------------------------------------- */
 
@@ -432,15 +414,20 @@ function openModal(title, buildBody, onSubmit) {
   const root = document.getElementById('modal-root');
   const previousFocus = document.activeElement;
   let saving = false;
+  let dirty = false;
   const form = el('form', {
     class: 'modal',
     role: 'dialog',
     'aria-modal': 'true',
     'aria-label': title,
   });
+  const beforeUnload = event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } };
+  addEventListener('beforeunload', beforeUnload);
   const close = () => {
     if (saving) return;
+    if (dirty && !confirm('Discard unsaved changes?')) return;
     root.innerHTML = '';
+    removeEventListener('beforeunload', beforeUnload);
     document.removeEventListener('keydown', onKey);
     previousFocus?.focus();
   };
@@ -478,6 +465,7 @@ function openModal(title, buildBody, onSubmit) {
     ),
   );
 
+  form.addEventListener('input', () => { dirty = true; });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (saving) return;
@@ -495,6 +483,7 @@ function openModal(title, buildBody, onSubmit) {
     form.setAttribute('aria-busy', 'true');
     try {
       await onSubmit(data, form);
+      dirty = false;
       saving = false;
       close();
     } catch (err) {
@@ -710,7 +699,7 @@ async function renderTickets(view, query, list) {
     params.set('actionable', 'true');
   const [tickets, devices, tags] = await Promise.all([
     api(`/tickets?${params}`),
-    api('/devices'),
+    api('/devices').catch(() => []),
     api('/tags'),
   ]);
 
@@ -1092,7 +1081,7 @@ function taskActions(ticket, includePlanning = true) {
 async function renderTicketDetail(view, id) {
   const [ticket, devices] = await Promise.all([
     api(`/tickets/${id}`),
-    api('/devices'),
+    api('/devices').catch(() => []),
   ]);
   const planning = await planningCard(ticket);
 
@@ -1103,7 +1092,7 @@ async function renderTicketDetail(view, id) {
   });
 
   view.append(
-    el('a', { class: 'back-link', href: '#/all' }, '← All tasks'),
+    el('a', { class: 'back-link', href: /^#\//.test(sessionStorage.getItem('taskhub-list-return') || '') ? sessionStorage.getItem('taskhub-list-return') : '#/all' }, '← Back to tasks'),
     el(
       'div',
       { class: 'detail-grid' },
@@ -1423,7 +1412,7 @@ function attachmentsCard(ticket, id) {
   const upload = guard(async () => {
     const file = fileInput.files[0];
     if (!file) return;
-    await uploadAttachment(id, file);
+    await uploadAttachment(id, await preparePhoto(file));
     render();
   });
 
@@ -1608,7 +1597,7 @@ function editTicketModal(ticket, patch) {
         {},
         field(
           'Title',
-          el('input', { name: 'title', required: true, value: ticket.title }),
+          el('input', { name: 'title', required: true, maxlength: 200, value: ticket.title }),
         ),
         field('Description', el('textarea', { name: 'body' }, ticket.body)),
         field(
@@ -1620,8 +1609,11 @@ function editTicketModal(ticket, patch) {
           }),
         ),
       ),
-    (data) =>
-      patch({ title: data.title, body: data.body, tags: parseTags(data.tags) }),
+    async (data) => {
+      await api(`/tickets/${ticket.id}`, { method: 'PATCH', body: { title: data.title, body: data.body, tags: parseTags(data.tags) } });
+      toast('Task changes saved');
+      await render();
+    },
   );
 }
 
@@ -2641,6 +2633,8 @@ function installShortcuts() {
 /* ---- Router ------------------------------------------------------------- */
 
 const ROUTES = [
+  [/^\/mobile-settings$/, view => renderSettings(view, { el, api, guard, render }), 'settings'],
+  [/^\/sync$/, view => renderSync(view, { el, api, guard, render }), 'sync'],
   ...captureRoutes,
   ...planningRoutes,
   [/^\/?$/, renderDashboard, 'dashboard'],
@@ -2686,7 +2680,7 @@ async function render() {
   next.id = 'view';
 
   try {
-    if (!['capture', 'drafts'].includes(match?.[2])) await refreshPlanning();
+    if (!['capture', 'drafts', 'settings', 'sync'].includes(match?.[2])) await refreshPlanning();
     if (!match) {
       next.append(
         el(
@@ -2715,6 +2709,7 @@ async function render() {
   if (version === renderVersion) {
     next.setAttribute('aria-live', 'polite');
     view.replaceWith(next);
+    dispatchEvent(new Event('taskhub-render'));
   }
 }
 
@@ -2732,7 +2727,14 @@ async function initSession() {
   button.addEventListener(
     'click',
     guard(async () => {
+      if (window.taskhubSyncBusy) { toast('Wait for sync to finish before signing out.'); return; }
+      const local = await offlineState();
+      if (local.operations.length && !confirm('There are unsent changes. Sign out and discard them? Cancel to sync or export them from Offline & sync.')) { location.hash = '#/sync'; return; }
+      const pushId = localStorage.getItem('taskhub-push-id');
+      if (pushId) await api(`/push/subscriptions/${pushId}`, { method: 'DELETE' });
       await api('/auth/logout', { method: 'POST' });
+      await clearOffline();
+      localStorage.removeItem('taskhub-push-id');
       if (
         confirm(
           'Also clear drafts stored on this device? Choose Cancel to keep them.',
@@ -2781,6 +2783,11 @@ document
   .addEventListener('click', () => newTicketModal());
 document.getElementById('shortcuts').addEventListener('click', showShortcuts);
 installShortcuts();
+setupMobile();
+setupOffline();
+addEventListener('taskhub-synced', () => {
+  if (!document.body.dataset.captureShell && !document.querySelector('#modal-root form') && !document.activeElement?.matches('input, textarea, select') && !/^#\/(capture|drafts|mobile-settings)/.test(location.hash)) render();
+});
 initSession();
 render();
 // A page left open overnight should resurface dated work without interrupting edits.

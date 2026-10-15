@@ -11,5 +11,8 @@
     "start": "node --experimental-sqlite src/server.js",
     "dev": "node --experimental-sqlite --watch src/server.js",
     "test": "node --experimental-sqlite --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "web-push": "3.6.7"
   }
 }

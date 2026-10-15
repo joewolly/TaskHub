@@ -1,5 +1,4 @@
-# The app has no npm dependencies, so there is nothing to install or build —
-# the image is the Node runtime plus the source.
+# The frontend has no build step. Install the locked Web Push runtime dependency.
 FROM node:22-alpine
 
 ENV NODE_ENV=production \
@@ -8,7 +7,8 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
 COPY src/ ./src/
 COPY public/ ./public/
 COPY docs/third-party-notices.md docs/lucide-LICENSE.txt ./licenses/

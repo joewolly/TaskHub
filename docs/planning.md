@@ -1,8 +1,12 @@
 # Planning and iPhone capture
 
 Task Hub remains a single-user app with one SQLite database and no npm
-dependencies. Inbox is still the home page; devices and maintenance remain
+frontend dependencies. Dashboard is the home page; devices and maintenance remain
 available alongside everyday tasks.
+
+For the current mobile layout, offline edits, installation, and push reminders,
+see [iPhone-first Task Hub](mobile.md). Its offline behavior supersedes the
+original capture-only workflow below.
 
 ## Choose what to do
 

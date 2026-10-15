@@ -5,7 +5,7 @@ export const SESSION_COOKIE = 'homelab_session';
 
 /** Paths reachable without a session — the login page and the API it posts to. */
 const PUBLIC_PATHS = new Set(['/login', '/login.js', '/styles.css', '/api/auth/login',
-  '/capture.html', '/app.js', '/planning.js', '/capture.js', '/draft-store.js', '/sw.js', '/sw-update.js',
+  '/app-shell.html', '/mobile.css', '/mobile.js', '/offline.js', '/settings.js', '/photos.js', '/icon-192.png', '/icon-512.png', '/capture.html', '/app.js', '/planning.js', '/capture.js', '/paste-capture.js', '/paste-tasks.js', '/draft-store.js', '/sw.js', '/sw-update.js',
   '/manifest.webmanifest', '/icon.svg', '/apple-touch-icon.png']);
 
 const MIN_PASSWORD_LENGTH = 8;

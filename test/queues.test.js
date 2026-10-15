@@ -147,10 +147,15 @@ test('migration preserves version-5 records and attachment bytes; backup restore
     const task = createTicket(db, { title: 'Legacy task', status: 'closed', due_date: '2026-01-01', tags: ['home'] });
     addComment(db, task.id, { body: 'Keep this history' });
     const attachment = addAttachment(db, task.id, { filename: 'receipt.txt', contentType: 'text/plain', data: Buffer.from('receipt bytes') });
-    const { queue: _queue, ...before } = getTicket(db, task.id);
+    const { queue: _queue, revision: _revision, ...before } = getTicket(db, task.id);
     // Reconstruct the immediately preceding schema, then exercise the normal
     // open/migrate path against its on-disk records (not an empty database).
-    db.exec(`DROP INDEX idx_tickets_assignee;
+    db.exec(`DROP TRIGGER tickets_revision;
+      ALTER TABLE tickets DROP COLUMN revision;
+      DROP TABLE sync_receipts;
+      DROP TABLE push_deliveries;
+      DROP TABLE push_subscriptions;
+      DROP INDEX idx_tickets_assignee;
       DROP INDEX idx_tickets_original_due_date;
       ALTER TABLE tickets DROP COLUMN assignee_id;
       ALTER TABLE tickets DROP COLUMN original_due_date;
@@ -177,7 +182,7 @@ test('migration preserves version-5 records and attachment bytes; backup restore
     db.close();
     db = null;
     db = openDatabase(path);
-    const { queue, ...after } = getTicket(db, task.id);
+    const { queue, revision: _newRevision, ...after } = getTicket(db, task.id);
     assert.equal(queue, 'next');
     assert.deepEqual(after, before);
     updateTicket(db, task.id, { status: 'open', queue: 'someday' });

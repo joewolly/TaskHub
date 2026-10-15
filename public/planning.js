@@ -135,7 +135,7 @@ function waitingModal(ticket) {
 
 export async function planningCard(ticket) {
   const { el, select, field } = ui;
-  const projects = await ui.api('/projects');
+  const projects = await ui.api('/projects').catch(() => ticket.project_id ? [{ id: ticket.project_id, name: ticket.project_name || 'Assigned project' }] : []);
   return el(
     'section',
     { class: 'card planning-card' },

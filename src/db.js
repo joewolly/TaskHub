@@ -311,6 +311,29 @@ const MIGRATIONS = [
   CREATE INDEX idx_tickets_assignee ON tickets(assignee_id);
   CREATE INDEX idx_tickets_original_due_date ON tickets(original_due_date);
   `,
+
+  `
+  ALTER TABLE tickets ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+  CREATE TRIGGER tickets_revision AFTER UPDATE ON tickets
+  WHEN NEW.revision = OLD.revision BEGIN
+    UPDATE tickets SET revision = OLD.revision + 1 WHERE id = NEW.id;
+  END;
+  CREATE TABLE sync_receipts (
+    id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, response TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE push_subscriptions (
+    id TEXT PRIMARY KEY, endpoint TEXT NOT NULL UNIQUE, subscription TEXT NOT NULL,
+    settings TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE push_deliveries (
+    subscription_id TEXT NOT NULL REFERENCES push_subscriptions(id) ON DELETE CASCADE,
+    event_key TEXT NOT NULL, payload TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
+    delivered_at TEXT, next_attempt INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(subscription_id, event_key)
+  );
+  `,
+
 ];
 
 /**

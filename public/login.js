@@ -2,6 +2,10 @@ const form = document.getElementById('login-form');
 const input = document.getElementById('password');
 const error = document.getElementById('error');
 const button = form.querySelector('button');
+// HTTP redirects preserve the fragment, including a cold notification deep link.
+if (/^#\//.test(location.hash) && !sessionStorage.getItem('taskhub-return')) {
+  sessionStorage.setItem('taskhub-return', '/' + location.hash);
+}
 
 function showError(message) {
   error.textContent = message;

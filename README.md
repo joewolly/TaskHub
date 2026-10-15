@@ -4,9 +4,8 @@ A self-hosted inbox for issues, chores, ideas, and things you want to get done.
 Capture a thought now; decide what to do with it later. Device inventory and
 recurring maintenance remain available alongside everyday personal tasks.
 
-Runs as a single container with a SQLite file. **No npm dependencies** — the
-whole thing is Node's standard library, so there is nothing to install, nothing
-to build, and no supply chain to keep an eye on.
+Runs as a single container with a SQLite file. The frontend has no build step. The backend uses Node's standard library plus
+the locked `web-push` package for optional iPhone notifications.
 
 ## Quick start
 
@@ -23,7 +22,7 @@ Tailscale and the production upgrade/restore procedure, see
 [Daily-use deployment](docs/deployment.md). On a remote Docker host, localhost
 means that host, not your computer.
 
-To run it directly instead:
+To run it directly instead (first run `npm ci --ignore-scripts`):
 
 ```sh
 AUTH_PASSWORD=your-long-passphrase npm start   # http://localhost:8080
@@ -36,7 +35,7 @@ specifically for the FTS5 full-text search the ticket index relies on.
 
 ## What it does
 
-The home screen is **Inbox**. Press **Add task** (or `n`), enter a title, and
+The home screen is **Dashboard**. Press **Add task** (or `n`), enter a title, and
 save. Notes, tags, priorities, dates, and devices are optional details. Saving
 keeps you on the same page; the new task waits in Inbox.
 
@@ -70,9 +69,10 @@ automatically generated maintenance/warranty tasks also default to Next.
 Only Next tasks can become **stale** after 14 days. An explicit deadline is
 still honored in every queue, including Inbox and Someday.
 
-Existing tasks require a connection to the server. New capture drafts and their
-attachments can be saved on the device while offline and submitted explicitly
-after reconnecting. Drafts are not included in server backups.
+Active tasks and checklists are cached on the device for offline viewing and core
+edits. Submitted capture drafts and pending changes retry after reconnection.
+Completed history and administration remain online. Device data is not included
+in server backups. See [iPhone, offline sync, and push setup](docs/mobile.md).
 
 Choose **Paste as tasks** from Capture or Drafts to turn a list into up to 50
 Inbox tasks. Preview, edit, remove, or exclude rows before saving; blank lines

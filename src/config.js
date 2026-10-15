@@ -1,3 +1,4 @@
+import { pushConfig } from './push.js';
 import { loadAuthConfig } from './auth.js';
 import { LOG_LEVELS } from './log.js';
 import { PRIORITIES } from './validate.js';
@@ -30,6 +31,7 @@ export function loadConfig(env = process.env) {
   const backupDir = env.BACKUP_DIR?.trim() ?? '';
 
   return {
+    push: pushConfig(env),
     timeZone: env.APP_TIME_ZONE || 'America/Denver',
     ...loadAuthConfig(env),
 

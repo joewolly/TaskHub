@@ -110,8 +110,8 @@ phone and verify them on the computer. This physical-phone check requires the
 owner; a simulated mobile browser is not evidence of cellular connectivity.
 
 For quick access, use Safari's **Share → Add to Home Screen** or the Android
-browser's **Add to Home screen** menu. This is an online shortcut, not an offline
-app. Keep Tailscale connected while using it away from home.
+browser's **Add to Home screen** menu. Cached tasks and supported edits work offline;
+see [mobile support](mobile.md) for limits. Keep Tailscale connected to sync away from home.
 
 ## Backups, upgrade, and recovery
 
@@ -203,3 +203,10 @@ the pre-upgrade snapshot name alongside the deployment, not in this repository.
 
 Local automated tests and browser checks establish app behavior, not the state
 of this server or phone.
+
+## Mobile and push upgrade
+
+See [iPhone-first Task Hub](mobile.md) for the revision/receipt migration,
+offline storage behavior, persistent VAPID keys, device enrollment, and remaining
+physical-iPhone acceptance checks. Preserve a verified pre-migration database
+snapshot and matching image before deploying this change.

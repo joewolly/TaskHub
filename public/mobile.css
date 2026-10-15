@@ -271,7 +271,7 @@ body:has(.modal-backdrop) .update-notice { display: none; }
   .chore-title { font-size: 17px; }
   .chore-item .field { grid-column: 1; grid-row: auto; width: auto; display: block; margin-top: 4px; }
   .chore-item .field label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px; font-size: 13px; margin: 0; }
-  .chore-item select { min-height: 44px; font-size: 16px; padding: 10px; }
+  .chore-item select { min-height: 44px; min-width: 0; font-size: 16px; padding: 10px; contain: paint; }
   .chore-card-actions { margin: 12px 0 0; }
   .chore-done { width: 100%; justify-content: center; }
   .chore-history { margin: 12px 0 0; padding-top: 0; font-size: 13px; }

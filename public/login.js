@@ -1,7 +1,14 @@
 const form = document.getElementById('login-form');
 const input = document.getElementById('password');
 const error = document.getElementById('error');
-const button = form.querySelector('button');
+const button = form.querySelector('button[type=submit]');
+const toggle = document.getElementById('toggle-password');
+toggle.addEventListener('click', () => {
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  toggle.textContent = show ? 'Hide' : 'Show';
+  toggle.setAttribute('aria-pressed', String(show));
+});
 // HTTP redirects preserve the fragment, including a cold notification deep link.
 if (/^#\//.test(location.hash) && !sessionStorage.getItem('taskhub-return')) {
   sessionStorage.setItem('taskhub-return', '/' + location.hash);

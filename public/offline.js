@@ -229,22 +229,34 @@ export async function clearOffline() {
 export async function renderSync(view, ui) {
   const state = await offlineState();
   const { el, guard } = ui;
-  const button = (text, fn) => el('button', { class: 'btn', onclick: guard(fn) }, text);
+  const button = (text, fn) => el('button', { class: 'btn', onclick: guard(async event => {
+    const control = event.currentTarget; control.disabled = true;
+    try { await fn(); } finally { control.disabled = false; }
+  }) }, text);
+  const describe = (values, task, kind) => {
+    const rows = [];
+    if ('title' in values) rows.push(['Title', values.title]);
+    if ('body' in values) rows.push([kind === 'note' ? 'New note' : 'Notes', values.body || 'No notes']);
+    if ('status' in values) rows.push(['Progress', ['resolved', 'closed'].includes(values.status) ? 'Done' : values.status.replaceAll('_', ' ')]);
+    if (kind === 'check') rows.push(['Checklist', `${task?.checklist?.find(item => item.id === values.item_id)?.title || 'Checklist step'} · ${values.completed ? 'Complete' : 'Not complete'}`]);
+    if (values.checklist?.length) rows.push(['Checklist', values.checklist.map(item => `${item.completed ? '✓' : '○'} ${item.title}`).join('\n')]);
+    return el('dl', { class: 'sync-comparison' }, ...rows.flatMap(([name, value]) => [el('dt', {}, name), el('dd', {}, value)]));
+  };
   const stack = el('div', { class: 'settings-stack' });
-  view.append(el('h1', {}, 'Offline & sync'), stack);
+  view.append(el('div', { class: 'page-head' }, el('div', {}, el('h1', {}, 'Offline & sync'), el('p', {}, 'Your saved work and changes waiting to send.'))), stack);
   stack.append(el('section', { class: 'card' }, el('h2', {}, `${state.operations.length} pending changes`),
     el('p', {}, 'Active tasks and checklists are saved on this device. Completed history, downloads, and administration require a connection. Offline search covers cached tasks only. Device data is not included in server backups.'),
     el('p', {}, state.snapshot ? `Last sync: ${new Date(state.snapshot.synced_at).toLocaleString()}` : 'Connect and sign in to save active tasks here.'),
     lastError && el('p', { role: 'alert' }, lastError),
-    button('Retry sync', async () => { await syncNow(); await ui.render(); }),
-    el('a', { href: '/login', class: 'btn' }, 'Sign in')));
+    el('div', { class: 'settings-actions' }, button('Retry sync', async () => { await syncNow(); await ui.render(); }),
+      state.locked && el('a', { href: '/login', class: 'btn' }, 'Sign in'))));
   for (const op of state.operations) {
     const task = state.tasks.find(t => t.id === op.ticket_id);
-    const card = el('section', { class: 'card sync-conflict' }, el('h2', {}, task?.title || `Task ${op.ticket_id}`), el('p', {}, op.problem ? 'Needs your decision' : 'Waiting to sync'), el('h3', {}, 'Your change'), el('pre', {}, JSON.stringify(op.changes, null, 2)));
+    const card = el('section', { class: 'card sync-conflict' }, el('h2', {}, task?.title || `Task ${op.ticket_id}`), el('p', {}, op.problem ? 'Needs your decision' : 'Waiting to sync'), el('h3', {}, 'Your change'), describe(op.changes, task, op.kind));
     if (op.problem) {
-      if (op.problem.task) card.append(el('h3', {}, 'Server version'), el('pre', {}, JSON.stringify({ title: op.problem.task.title, body: op.problem.task.body, status: op.problem.task.status, checklist: op.problem.task.checklist }, null, 2)));
+      if (op.problem.task) card.append(el('h3', {}, 'Server version'), describe(op.problem.task, op.problem.task));
       else card.append(el('p', {}, op.problem.state === 'invalid' ? `The server rejected this change: ${op.problem.error}. Export or recover it as a draft before discarding.` : 'This task was deleted. Export your changes below before discarding, or recover them as a draft.'));
-      card.append(button('Use server / discard local task changes', async () => {
+      card.append(el('p', { class: 'muted' }, 'Discarding removes all pending changes for this task from this device.'), button(op.problem.task ? 'Use server version' : 'Discard local changes', async () => {
         if (!confirm('Discard all pending changes for this task?')) return;
         await offlineState(s => { s.operations = s.operations.filter(o => o.ticket_id !== op.ticket_id); }); await syncNow(); await ui.render();
       }));

@@ -18,18 +18,19 @@
         <span class="brand-mark" aria-hidden="true">▪</span>
         <span>Task Hub</span>
       </div>
+      <h1>Welcome back</h1>
+      <p class="login-intro">Sign in to your tasks, plans, and home routines.</p>
 
       <form id="login-form">
         <div class="field">
           <label for="password">Password</label>
-          <input
+          <div class="password-field"><input
             id="password"
             name="password"
             type="password"
             autocomplete="current-password"
             required
-            autofocus
-          />
+          /><button type="button" id="toggle-password" aria-controls="password" aria-pressed="false">Show</button></div>
         </div>
         <button class="btn btn-primary" type="submit" style="width: 100%">Sign in</button>
         <p id="error" class="login-error" role="alert" hidden></p>

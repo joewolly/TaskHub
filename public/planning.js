@@ -280,7 +280,7 @@ function taskRows(tasks) {
           el(
             'div',
             { class: 'planning-task' },
-            ticketRow(t),
+            ticketRow(t, null, 'planning'),
             t.is_open &&
               el(
                 'div',
@@ -511,7 +511,8 @@ async function renderProject(view, id) {
         'Add task to project',
       ),
       button('Assign existing task', async () => {
-        const tasks = await api('/tickets?status=all');
+        const tasks = (await api('/tickets?status=all')).filter(t => t.project_id !== Number(id));
+        if (!tasks.length) { ui.toast('No other tasks to assign. Add a new task to this project.'); return; }
         ui.openModal(
           'Assign task',
           () =>
@@ -520,7 +521,6 @@ async function renderProject(view, id) {
               ui.select(
                 'task_id',
                 tasks
-                  .filter((t) => t.project_id !== Number(id))
                   .map((t) => [t.id, t.title]),
                 '',
               ),
@@ -697,7 +697,7 @@ async function renderViews(view) {
     ...views.map((v, i) =>
       el(
         'section',
-        { class: 'card planning-card row-between' },
+        { class: 'card planning-card saved-view-row' },
         el('a', { href: `#/views/${v.id}` }, v.name),
         el(
           'div',
@@ -709,11 +709,13 @@ async function renderViews(view) {
       ),
     ),
   );
+  if (!views.length) view.append(empty('Save your favorite filters to find tasks faster.'));
 }
 
 async function renderSavedView(view, id) {
   const saved = await ui.api(`/views/${id}`);
   view.append(
+    ui.el('a', { class: 'back-link', href: '#/views' }, '← Saved views'),
     heading(
       saved.name,
       'Tasks matching your saved filters.',
@@ -740,7 +742,11 @@ const DAYS = [
 export function recurrenceLabel(schedule) {
   const r = schedule.recurrence;
   if (!r) return `Every ${schedule.interval_days} days`;
-  if (r.kind === 'weekly') return r.weekdays.map((d) => DAYS[d]).join(', ');
+  if (r.kind === 'weekly') {
+    if (r.weekdays.length === 7) return 'Every day';
+    if (r.weekdays.length === 5 && [1, 2, 3, 4, 5].every(day => r.weekdays.includes(day))) return 'Weekdays';
+    return r.weekdays.map((d) => DAYS[d]).join(', ');
+  }
   if (r.kind === 'monthly_date') return `Monthly on day ${r.day}`;
   if (r.kind === 'monthly_weekday')
     return `${['First', 'Second', 'Third', 'Fourth', 'Last'][r.ordinal - 1]} ${DAYS[r.weekday]} each month`;

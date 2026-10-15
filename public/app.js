@@ -422,6 +422,7 @@ function openModal(title, buildBody, onSubmit) {
     'aria-modal': 'true',
     'aria-label': title,
   });
+  const formError = el('p', { class: 'form-error', role: 'alert', tabindex: '-1', hidden: true });
   const beforeUnload = event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } };
   addEventListener('beforeunload', beforeUnload);
   const close = () => {
@@ -458,7 +459,7 @@ function openModal(title, buildBody, onSubmit) {
 
   form.append(
     el('header', { class: 'modal-heading' }, el('h2', {}, title)),
-    el('div', { class: 'modal-body' }, buildBody()),
+    el('div', { class: 'modal-body' }, formError, buildBody()),
     el(
       'div',
       { class: 'modal-actions' },
@@ -473,6 +474,7 @@ function openModal(title, buildBody, onSubmit) {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (saving) return;
+    formError.hidden = true;
     const data = Object.fromEntries(new FormData(form));
     saving = true;
     const controls = [
@@ -491,6 +493,10 @@ function openModal(title, buildBody, onSubmit) {
       saving = false;
       close();
     } catch (err) {
+      formError.textContent = err.message;
+      formError.hidden = false;
+      form.querySelector('.modal-body').scrollTop = 0;
+      formError.focus({ preventScroll: true });
       toast(err.message, true);
     } finally {
       saving = false;
@@ -1015,6 +1021,8 @@ function ticketRow(ticket, onToggle, list) {
               ticket.today_rank !== null && 'Today',
               ticket.due_date && (ticket.due_date === planningDate ? 'Due today' : `Due ${shortDate(ticket.due_date)}`),
               ticket.waiting_on && `Waiting on ${ticket.waiting_on}`,
+              ticket.snoozed_until && `Snoozed until ${shortDate(ticket.snoozed_until)}`,
+              ticket.checklist_total > 0 && `${ticket.checklist_completed}/${ticket.checklist_total} steps`,
               ticket.is_chore && (ticket.assignee_name ? `Assigned to ${ticket.assignee_name}` : 'Chore'),
               ...ticket.tags,
             ].filter(Boolean).map((text) => el('span', {}, text)),
@@ -1670,7 +1678,6 @@ async function renderDevices(view, query) {
           'p',
           {},
           `${devices.length} ${devices.length === 1 ? 'device' : 'devices'}`,
-          exportLinks('devices'),
         ),
       ),
       el(
@@ -1679,6 +1686,7 @@ async function renderDevices(view, query) {
         'Add device',
       ),
     ),
+    el('details', { class: 'page-tools' }, el('summary', {}, 'Export devices'), exportLinks('devices')),
     el(
       'div',
       { class: 'filters' },
@@ -1700,8 +1708,8 @@ async function renderDevices(view, query) {
       ? el(
           'div',
           { class: 'empty-state' },
-          el('strong', {}, 'No devices yet'),
-          'Add your first server, NAS, or switch to start tracking work against it.',
+          el('strong', {}, Object.keys(query).length ? 'No matching devices' : 'No devices yet'),
+          Object.keys(query).length ? 'Try a different search or filter.' : 'Add a device to keep its tasks, details, and service history together.',
         )
       : el('div', { class: 'device-grid' }, ...devices.map(deviceCard)),
   );
@@ -1726,7 +1734,7 @@ function deviceCard(device) {
     el(
       'div',
       { class: 'name' },
-      el('span', {}, device.name),
+      el('a', { href: `#/devices/${device.id}` }, device.name),
       device.open_tickets > 0
         ? el(
             'span',
@@ -1789,7 +1797,7 @@ async function renderDeviceDetail(view, id) {
           el('h1', {}, device.name),
           el(
             'div',
-            { style: 'display: flex; gap: 8px' },
+            { class: 'detail-actions' },
             el(
               'button',
               { class: 'btn btn-sm', onclick: () => newTicketModal(device.id) },
@@ -1946,7 +1954,7 @@ async function deviceModal(device) {
   );
 
   openModal(
-    editing ? `Edit ${device.name}` : 'Add device',
+    editing ? 'Edit device' : 'Add device',
     () =>
       el(
         'div',
@@ -2121,24 +2129,24 @@ async function renderSchedules(view, query) {
           'p',
           {},
           `${schedules.length} ${schedules.length === 1 ? 'schedule' : 'schedules'}`,
-          exportLinks('schedules'),
-          calendarLink(),
         ),
       ),
       el(
         'div',
-        { style: 'display: flex; gap: 8px' },
-        el('button', { class: 'btn', onclick: runDue }, 'Run due now'),
+        { class: 'planning-actions' },
         el(
           'button',
           { class: 'btn btn-primary', onclick: guard(() => recurrenceModal()) },
           'New routine',
         ),
-        el(
-          'button',
-          { class: 'btn btn-sm', onclick: () => scheduleModal(null, devices) },
-          'Legacy interval schedule',
-        ),
+      ),
+    ),
+    el('details', { class: 'page-tools' },
+      el('summary', {}, 'Schedule tools'),
+      el('div', { class: 'planning-actions' },
+        el('button', { class: 'btn', onclick: runDue }, 'Run due now'),
+        el('button', { class: 'btn', onclick: () => scheduleModal(null, devices) }, 'New interval schedule'),
+        exportLinks('schedules'), calendarLink(),
       ),
     ),
     el(
@@ -2165,8 +2173,8 @@ async function renderSchedules(view, query) {
       ? el(
           'div',
           { class: 'empty-state' },
-          el('strong', {}, 'No schedules yet'),
-          'Filter changes, cert renewals, battery swaps — the work you only remember once it has already gone wrong.',
+          el('strong', {}, Object.keys(query).length ? 'No matching schedules' : 'No schedules yet'),
+          Object.keys(query).length ? 'Try a different filter.' : 'Create a routine for the things you want to remember regularly.',
         )
       : el(
           'div',
@@ -2201,7 +2209,7 @@ function scheduleRow(schedule, devices) {
     el(
       'div',
       { class: 'main' },
-      el('div', { class: 'title' }, schedule.title),
+      el('a', { class: 'title', href: `#/schedules/${schedule.id}` }, schedule.title),
       el(
         'div',
         { class: 'sub' },
@@ -2280,7 +2288,7 @@ async function renderScheduleDetail(view, id) {
         el(
           'section',
           { class: 'card', style: 'margin-bottom: 16px' },
-          el('h2', {}, 'Ticket template'),
+          el('h2', {}, 'Task template'),
           schedule.body
             ? prose(schedule.body)
             : el('div', { class: 'prose empty' }, 'No description.'),
@@ -2294,7 +2302,7 @@ async function renderScheduleDetail(view, id) {
         el(
           'section',
           { class: 'card' },
-          el('h2', {}, `Tickets generated (${schedule.tickets.length})`),
+          el('h2', {}, `Created tasks (${schedule.tickets.length})`),
           schedule.tickets.length === 0
             ? el('p', { class: 'muted' }, 'Nothing generated yet.')
             : el(
@@ -2655,7 +2663,7 @@ function installShortcuts() {
 /* ---- Router ------------------------------------------------------------- */
 
 const ROUTES = [
-  [/^\/mobile-settings$/, view => renderSettings(view, { el, api, guard, render }), 'settings'],
+  [/^\/mobile-settings$/, view => renderSettings(view, { el, api, guard, render, toast }), 'settings'],
   [/^\/sync$/, view => renderSync(view, { el, api, guard, render }), 'sync'],
   ...captureRoutes,
   ...planningRoutes,
@@ -2713,8 +2721,9 @@ async function render() {
         el(
           'div',
           { class: 'empty-state' },
-          el('strong', {}, 'Page not found'),
-          raw,
+          el('h1', {}, 'Page not found'),
+          el('p', {}, 'This page may have moved or been removed.'),
+          el('a', { class: 'btn btn-primary', href: '#/' }, 'Go to Home'),
         ),
       );
     } else {
@@ -2727,8 +2736,12 @@ async function render() {
       el(
         'div',
         { class: 'empty-state' },
-        el('strong', {}, 'Could not load'),
-        err.message,
+        el('h1', {}, 'Could not load this page'),
+        el('p', {}, err.message),
+        el('div', { class: 'planning-actions' },
+          el('button', { class: 'btn btn-primary', onclick: () => render() }, 'Try again'),
+          el('a', { class: 'btn', href: '#/' }, 'Go to Home'),
+        ),
       ),
     );
   }

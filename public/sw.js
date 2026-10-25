@@ -1,5 +1,5 @@
-const CACHE = 'taskhub-mobile-v13';
-const ASSETS = ['/app-shell.html', '/capture.html', '/app.js', '/planning.js', '/capture.js', '/paste-capture.js', '/paste-tasks.js', '/uuid.js', '/read-cache.js', '/sw-update.js', '/draft-store.js', '/offline.js', '/settings.js', '/mobile.js', '/photos.js', '/styles.css', '/mobile.css', '/manifest.webmanifest', '/icon.svg', '/apple-touch-icon.png', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'taskhub-mobile-v14';
+const ASSETS = ['/app-shell.html', '/capture.html', '/app.js', '/planning.js', '/capture.js', '/paste-capture.js', '/paste-tasks.js', '/uuid.js', '/read-cache.js', '/workflows.js', '/sw-update.js', '/draft-store.js', '/offline.js', '/settings.js', '/mobile.js', '/photos.js', '/styles.css', '/mobile.css', '/manifest.webmanifest', '/icon.svg', '/apple-touch-icon.png', '/icon-192.png', '/icon-512.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))));
 self.addEventListener('message', event => { if (event.data?.type === 'ACTIVATE') self.skipWaiting(); });
 self.addEventListener('activate', event => event.waitUntil((async () => {

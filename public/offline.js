@@ -9,7 +9,7 @@ let connection;
 let lastError = '';
 let disconnected = !navigator.onLine;
 let syncing;
-const empty = () => ({ tasks: [], operations: [], snapshot: null, locked: false });
+const empty = () => ({ tasks: [], operations: [], snapshot: null, locked: false, focusDrafts: {} });
 function database() {
   return connection ||= new Promise((resolve, reject) => {
     const request = indexedDB.open('taskhub-offline', 1);

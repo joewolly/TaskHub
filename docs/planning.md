@@ -8,6 +8,21 @@ For the current mobile layout, offline edits, installation, and push reminders,
 see [iPhone-first Task Hub](mobile.md). Its offline behavior supersedes the
 original capture-only workflow below.
 
+## Daily review and Do now
+
+Open **Today → Review Today** for three optional steps: dates/follow-ups, up to
+20 older Inbox/actionable Next tasks, and your ordered Today list. Opening,
+skipping steps, or exiting changes nothing. Individual planning actions save
+immediately; adding waiting/snoozed work to Today asks before clearing those fields.
+
+**Do now** opens one Today task with its notes and checklist. Next only changes
+the displayed task. Done uses normal completion and advances to the next selected
+task. Fresh server revisions protect against changes on another device. Unsent
+notes and uncertain operation identities survive reload on this device; retry
+recovers the same receipt without duplicating notes. Sign-out clears this data.
+These focused workflows need a connection; the existing offline task screens
+remain available through Today and Offline & sync.
+
 ## Choose what to do
 
 Use **Today** on a task or select several tasks and choose **Add to Today**.

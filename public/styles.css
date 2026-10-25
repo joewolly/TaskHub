@@ -1096,3 +1096,12 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+.review-task { margin-bottom: 1rem; }
+.review-task fieldset, .focus-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.focus-session { max-width: 48rem; margin-inline: auto; }
+.focus-check { display: flex; gap: .75rem; align-items: center; padding: .75rem 0; }
+.preserve-lines { white-space: pre-wrap; overflow-wrap: anywhere; }
+.focus-session textarea { width: 100%; min-height: 7rem; margin-bottom: .75rem; }
+.focus-session .planning-actions { margin-top: 1rem; }
+.focus-check input { width: auto; flex: 0 0 auto; }

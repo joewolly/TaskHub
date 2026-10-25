@@ -1,3 +1,4 @@
+import { estimateOptions, matchesTime, timeFilters } from './time-estimates.js';
 /* Planning UI uses the existing DOM helpers and API, without a framework or build step. */
 let ui;
 export let planningDate = new Date().toISOString().slice(0, 10);
@@ -52,6 +53,7 @@ export async function refreshPlanning() {
 
 export function planningBadges(t) {
   return [
+    t.estimate_minutes && ui.el('span', { class: 'badge' }, `${t.estimate_minutes} min`),
     t.today_rank !== null &&
       ui.el('span', { class: 'badge focus-badge' }, 'Today'),
     t.project_name && ui.el('span', { class: 'tag' }, t.project_name),
@@ -142,6 +144,7 @@ export async function planningCard(ticket) {
     'section',
     { class: 'card planning-card' },
     el('h2', {}, 'Plan this task'),
+    field('Time estimate', select('estimate_minutes', estimateOptions, ticket.estimate_minutes || '', ui.guard(event => patch(ticket.id, { estimate_minutes: event.target.value || null })))),
     field(
       'Project',
       select(
@@ -308,7 +311,7 @@ function taskRows(tasks) {
     : empty('Nothing here yet');
 }
 
-async function renderToday(view) {
+async function renderToday(view, query = {}) {
   const { el, api } = ui;
   const [tasks, due, overdue] = await Promise.all([
     api('/tickets?today=true&sort=today'),
@@ -324,6 +327,8 @@ async function renderToday(view) {
       el('a', { class: 'btn', href: '#/next' }, 'Choose from Next'),
     ),
   );
+  view.append(timeFilters(ui, query, (key, value) => { const params = new URLSearchParams(query); if (value) params.set(key, value); else params.delete(key); location.hash = `#/today?${params}`; }));
+  if (query.max_minutes) view.append(el('p', { class: 'muted' }, 'Clear the time filter to reorder your full Today list.'));
   const move = async (from, to) => {
     const ids = tasks.map((t) => t.id);
     ids.splice(to, 0, ids.splice(from, 1)[0]);
@@ -334,12 +339,12 @@ async function renderToday(view) {
   const list = el(
     'div',
     { class: 'focus-list' },
-    ...tasks.map((task, index) =>
+    ...tasks.filter(task => matchesTime(task, query)).map((task, index) =>
       el(
         'section',
         {
           class: 'focus-task',
-          draggable: 'true',
+          draggable: query.max_minutes ? 'false' : 'true',
           ondragstart: (e) => {
             dragIndex = index;
             e.dataTransfer.setData('text/plain', String(index));
@@ -347,7 +352,7 @@ async function renderToday(view) {
           ondragover: (e) => e.preventDefault(),
           ondrop: ui.guard(async (e) => {
             e.preventDefault();
-            if (dragIndex !== null && dragIndex !== index)
+            if (!query.max_minutes && dragIndex !== null && dragIndex !== index)
               await move(dragIndex, index);
           }),
           ondragend: () => {
@@ -363,8 +368,8 @@ async function renderToday(view) {
         el(
           'div',
           { class: 'planning-actions' },
-          index > 0 && button('Up', () => move(index, index - 1)),
-          index < tasks.length - 1 &&
+          !query.max_minutes && index > 0 && button('Up', () => move(index, index - 1)),
+          !query.max_minutes && index < tasks.length - 1 &&
             button('Down', () => move(index, index + 1)),
           el('a', { class: 'btn', href: `#/do-now?task=${task.id}` }, 'Do now'),
           button('Done', () => patch(task.id, { status: 'resolved' }), true),
@@ -374,7 +379,7 @@ async function renderToday(view) {
     ),
   );
   view.append(
-    tasks.length ? list : empty('Choose a few tasks for today'),
+    tasks.some(task => matchesTime(task, query)) ? list : empty(query.max_minutes ? 'No tasks match this time filter' : 'Choose a few tasks for today'),
     el(
       'section',
       { class: 'deadline-section' },

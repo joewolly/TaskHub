@@ -36,6 +36,7 @@ const COLUMNS = {
     'snoozed_until',
     'waiting_on',
     'follow_up_date',
+    'estimate_minutes',
   ],
   devices: [
     'id',
@@ -85,7 +86,7 @@ const QUERIES = {
               JOIN tags tg ON tg.id = tt.tag_id WHERE tt.ticket_id = t.id) AS tags,
            t.due_date, t.created_at, t.updated_at, t.resolved_at,
            (SELECT COUNT(*) FROM comments c WHERE c.ticket_id = t.id) AS comments,
-           t.body, t.queue, t.project_id, t.today_rank, t.snoozed_until, t.waiting_on, t.follow_up_date
+           t.body, t.queue, t.project_id, t.today_rank, t.snoozed_until, t.waiting_on, t.follow_up_date, t.estimate_minutes
       FROM tickets t
       LEFT JOIN devices d ON d.id = t.device_id`,
 

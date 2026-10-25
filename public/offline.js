@@ -1,3 +1,4 @@
+import { matchesTime } from './time-estimates.js';
 import { randomId } from './uuid.js';
 import { createReadCache } from './read-cache.js';
 
@@ -63,7 +64,7 @@ function filtered(tasks, query, today) {
   if (due) rows = rows.filter(t => due === 'none' ? !t.due_date : due === 'overdue' ? t.due_date && t.due_date < today : due === 'today' ? t.due_date === today : t.due_date && t.due_date >= today && t.due_date <= new Date(new Date(today + 'T12:00Z').getTime() + 7 * 86400000).toISOString().slice(0, 10));
   const priority = { critical: 0, high: 1, medium: 2, low: 3 }, sort = query.get('sort');
   rows.sort((a, b) => sort === 'today' ? a.today_rank - b.today_rank || a.id - b.id : sort === 'oldest' ? a.id - b.id : sort === 'newest' ? b.id - a.id : sort === 'updated' ? b.updated_at.localeCompare(a.updated_at) : sort === 'due' ? (a.due_date || '9999').localeCompare(b.due_date || '9999') : priority[a.priority] - priority[b.priority] || b.id - a.id);
-  return rows;
+  return rows.filter(task => matchesTime(task, Object.fromEntries(query)));
 }
 async function cached(path) {
   const state = await offlineState();

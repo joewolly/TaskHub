@@ -1,8 +1,8 @@
 # Practical feature roadmap
 
 Status: **implementation approved, 2026-10-24**. Photo preparation and paste-list
-capture are implemented. Daily review and Do now are now implemented; task reuse,
-time estimates, backup status, and chore skipping are the remaining stages.
+capture are implemented. Daily review, Do now, task reuse, and time estimates
+are implemented; backup status and chore skipping are the remaining stages.
 The older pocket-copy proposal is superseded by core offline viewing/editing.
 Detailed acceptance criteria below remain the scope guide; old offline-only
 restrictions describe the original proposal rather than current mobile behavior.

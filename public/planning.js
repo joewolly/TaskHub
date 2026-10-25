@@ -319,6 +319,8 @@ async function renderToday(view) {
     heading(
       'Today',
       'A small, intentional list. Unfinished tasks stay here until you finish or remove them.',
+      el('a', { class: 'btn', href: '#/review' }, 'Review Today'),
+      el('a', { class: 'btn btn-primary', href: '#/do-now' }, 'Do now'),
       el('a', { class: 'btn', href: '#/next' }, 'Choose from Next'),
     ),
   );
@@ -364,6 +366,7 @@ async function renderToday(view) {
           index > 0 && button('Up', () => move(index, index - 1)),
           index < tasks.length - 1 &&
             button('Down', () => move(index, index + 1)),
+          el('a', { class: 'btn', href: `#/do-now?task=${task.id}` }, 'Do now'),
           button('Done', () => patch(task.id, { status: 'resolved' }), true),
           button('Remove', () => patch(task.id, { today: false })),
         ),

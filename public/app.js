@@ -1,3 +1,4 @@
+import { renderReview, renderFocus } from './workflows.js';
 import { offlineApi, setupOffline, offlineState, clearOffline, renderSync, invalidateNavigationReads } from './offline.js';
 import { renderSettings } from './settings.js';
 import { preparePhoto } from './photos.js';
@@ -2664,6 +2665,8 @@ function installShortcuts() {
 /* ---- Router ------------------------------------------------------------- */
 
 const ROUTES = [
+  [/^\/review$/, (view, query) => renderReview(view, query, { el, guard, render }), 'today'],
+  [/^\/do-now$/, (view, query) => renderFocus(view, query, { el, guard, render }), 'today'],
   [/^\/mobile-settings$/, view => renderSettings(view, { el, api, guard, render, toast }), 'settings'],
   [/^\/sync$/, view => renderSync(view, { el, api, guard, render }), 'sync'],
   ...captureRoutes,
@@ -2847,7 +2850,7 @@ addEventListener('taskhub-synced', event => {
   // History, searches, inventory, and other screens still refresh from their APIs.
   const route = location.hash.replace(/^#/, '') || '/';
   if (event.detail?.changed === false && ['/', '/dashboard', '/today', '/inbox', '/next', '/waiting', '/snoozed'].includes(route)) return;
-  if (!document.body.dataset.captureShell && !document.querySelector('#modal-root form, .more-nav[open], .bulk-list.selecting, .ticket-actions[open]') && !document.activeElement?.matches('input, textarea, select') && !/^#\/(capture|paste|drafts|mobile-settings)/.test(location.hash)) render();
+  if (!document.body.dataset.captureShell && !document.querySelector('#modal-root form, .more-nav[open], .bulk-list.selecting, .ticket-actions[open]') && !document.activeElement?.matches('input, textarea, select') && !/^#\/(capture|paste|drafts|mobile-settings|review|do-now)/.test(location.hash)) render();
 });
 initSession();
 render();

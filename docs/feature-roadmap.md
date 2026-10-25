@@ -1,8 +1,11 @@
 # Practical feature roadmap
 
-Status: **proposal for Joe's review**. Priorities and milestone boundaries below
-are recommendations, not agreed commitments or delivery dates. This document
-changes no application behavior.
+Status: **implementation approved, 2026-10-24**. Photo preparation and paste-list
+capture are implemented. Daily review and Do now are now implemented; task reuse,
+time estimates, backup status, and chore skipping are the remaining stages.
+The older pocket-copy proposal is superseded by core offline viewing/editing.
+Detailed acceptance criteria below remain the scope guide; old offline-only
+restrictions describe the original proposal rather than current mobile behavior.
 
 Reviewed against main at
 [`1fe26fc7dc056cdd6f9b9f013291420f9ab89914`](https://github.com/joewolly/TaskHub/commit/1fe26fc7dc056cdd6f9b9f013291420f9ab89914)

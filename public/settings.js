@@ -4,6 +4,26 @@ export async function renderSettings(view, ui) {
   const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   const stack = el('div', { class: 'settings-stack' });
   view.append(el('div', { class: 'page-head' }, el('div', {}, el('h1', {}, 'App & notifications'), el('p', {}, 'Make Task Hub feel at home on this device.'))), stack);
+  const backup = el('section', { class: 'card backup-status' }, el('h2', {}, 'Backup status'));
+  stack.append(backup);
+  const refreshBackup = async () => {
+    backup.replaceChildren(el('h2', {}, 'Backup status'));
+    try {
+      const state = await api('/backup/status');
+      const labels = { healthy: 'Snapshot up to date', failed: 'Last backup failed', overdue: 'Backup overdue', unknown: 'No backup result recorded', disabled: 'Automatic backups disabled' };
+      const date = value => value ? new Date(value).toLocaleString() : 'None recorded';
+      backup.append(...[el('p', { role: 'status' }, labels[state.status]),
+        el('p', {}, `Last successful snapshot: ${date(state.last_success_at)}`),
+        el('p', {}, `Last failed attempt: ${date(state.last_failure_at)}`),
+        state.last_failure_at && el('p', {}, ({ storage_full: 'Storage was full.', permission_denied: 'The backup location could not be accessed.', backup_failed: 'The backup could not be completed. Check server logs and storage.' })[state.failure_code]),
+        state.enabled && el('p', {}, `Scheduled every ${state.interval_hours} hours; keep ${state.keep} snapshots. Next expected: ${date(state.next_due_at)}. Overdue includes a five-minute grace period.`),
+        !state.status_persisted && el('p', { class: 'error' }, 'The latest failure could not be saved to server storage. This status may be lost on restart.')].filter(Boolean));
+    } catch { backup.append(el('p', { role: 'status' }, 'Backup status is unavailable. Reconnect and refresh to check.')); }
+    backup.append(el('p', { class: 'muted' }, 'A successful snapshot is not a verified restore. The usual backup volume is on the same server and does not protect against host loss. Device-local drafts and unsent changes are excluded.'),
+      el('a', { href: 'https://github.com/joewolly/TaskHub/blob/main/docs/deployment.md#backups-upgrade-and-recovery', target: '_blank', rel: 'noopener' }, 'Recovery instructions'),
+      el('button', { class: 'btn', type: 'button', onclick: guard(refreshBackup) }, 'Refresh backup status'));
+  };
+  await refreshBackup();
   stack.append(el('section', { class: 'card' }, el('h2', {}, 'At home on your iPhone'),
     el('p', {}, installed ? 'You are using the installed web app.' : 'In Safari, open Share, choose Add to Home Screen, and enable Open as Web App if shown. Then open Task Hub from its new icon.'),
     el('p', {}, 'Use your private HTTPS address. Away from home, connect to Tailscale to reach your server. Saved active tasks remain available offline.'),

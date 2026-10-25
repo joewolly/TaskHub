@@ -151,6 +151,7 @@ test('migration preserves version-5 records and attachment bytes; backup restore
     // Reconstruct the immediately preceding schema, then exercise the normal
     // open/migrate path against its on-disk records (not an empty database).
     db.exec(`DROP TRIGGER tickets_revision;
+      DROP TABLE backup_status;
       ALTER TABLE tickets DROP COLUMN estimate_minutes;
       ALTER TABLE tickets DROP COLUMN revision;
       DROP TABLE sync_receipts;

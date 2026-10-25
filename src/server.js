@@ -12,7 +12,7 @@ import { loadConfig } from './config.js';
 import { configureLogging, log, errorFields } from './log.js';
 import { createRateLimiter } from './ratelimit.js';
 import { createNotifier } from './notify.js';
-import { runBackupSafely } from './backup.js';
+import { runBackupSafely, getBackupStatus } from './backup.js';
 import { sweepWarranties } from './api/warranty.js';
 import {
   listDevices,
@@ -115,6 +115,7 @@ const ROUTES = [
   ['DELETE', '/api/push/subscriptions/:subscriptionId', ({ db, params }) => removeSubscription(db, params.subscriptionId)],
   ['POST', '/api/push/subscriptions/:subscriptionId/test', ({ db, config, params }) => testPush(db, config, params.subscriptionId), 200],
   ['GET', '/api/sync/snapshot', ({ db }) => snapshot(db)],
+  ['GET', '/api/backup/status', ({ db, config }) => getBackupStatus(db, config.backup)],
   ['POST', '/api/sync/operations', ({ db, body, notifier }) => applyOperation(db, body, notifier), 200],
   [
     'GET',

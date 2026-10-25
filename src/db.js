@@ -336,6 +336,12 @@ const MIGRATIONS = [
   `ALTER TABLE tickets ADD COLUMN estimate_minutes INTEGER
     CHECK (estimate_minutes IS NULL OR estimate_minutes IN (5, 15, 30, 60));`,
 
+  `CREATE TABLE backup_status (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    last_success_at TEXT, last_failure_at TEXT, failure_code TEXT,
+    last_outcome TEXT, last_bytes INTEGER
+  );
+  INSERT INTO backup_status(id) VALUES (1);`,
 ];
 
 /**

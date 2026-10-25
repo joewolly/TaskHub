@@ -161,6 +161,16 @@ requests must return 401 on both routes. Confirm Tailscale login still sets a
 
 ## Backups, upgrade, and recovery
 
+**More → App & notifications → Backup status** shows the last successful
+snapshot and failed attempt independently, plus cadence and expected next run.
+States are disabled, unknown (no recorded result), healthy, failed, and overdue
+(five minutes beyond the expected cadence). Outcomes survive server restarts.
+`GET /api/backup/status` requires authentication and never returns backup paths.
+If storage also prevents recording a failure, the panel explicitly labels the
+failure as temporary. A snapshot is not a verified restore, and the same-host
+backup volume does not protect against host loss. Local drafts/unsent edits are
+excluded. Use the isolated recovery procedure below; there is no live restore button.
+
 `ticket-data` holds `/data/homelab.db` and its SQLite sidecars. `ticket-backups`
 is separately mounted at `/backups`; daily snapshots retain the newest 14.
 Compose prefixes the volume names with its project name. Both volumes are on

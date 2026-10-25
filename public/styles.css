@@ -1104,3 +1104,4 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .preserve-lines { white-space: pre-wrap; overflow-wrap: anywhere; }
 .focus-session textarea { width: 100%; min-height: 7rem; margin-bottom: .75rem; }
 .focus-session .planning-actions { margin-top: 1rem; }
+.focus-check input { width: auto; flex: 0 0 auto; }

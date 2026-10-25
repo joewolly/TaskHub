@@ -1,8 +1,8 @@
 import { log, errorFields } from './log.js';
-import { CLOSED_STATUSES, PRIORITIES } from './validate.js';
+import { TERMINAL_STATUSES, PRIORITIES } from './validate.js';
 import { dateFor } from './dates.js';
 
-const CLOSED_LIST = CLOSED_STATUSES.map((s) => `'${s}'`).join(', ');
+const CLOSED_LIST = TERMINAL_STATUSES.map((s) => `'${s}'`).join(', ');
 
 /** ntfy's own priority scale, which does not line up with ours by name. */
 const NTFY_PRIORITY = { low: '2', medium: '3', high: '4', critical: '5' };

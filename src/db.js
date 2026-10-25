@@ -342,6 +342,8 @@ const MIGRATIONS = [
     last_outcome TEXT, last_bytes INTEGER
   );
   INSERT INTO backup_status(id) VALUES (1);`,
+  `ALTER TABLE tickets ADD COLUMN skipped_at TEXT;
+   ALTER TABLE tickets ADD COLUMN skip_reason TEXT;`,
 ];
 
 /**

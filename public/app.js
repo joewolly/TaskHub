@@ -34,6 +34,7 @@ const TICKET_STATUSES = [
   'blocked',
   'resolved',
   'closed',
+  'skipped',
 ];
 const TICKET_QUEUES = ['inbox', 'next', 'someday'];
 const PRIORITIES = ['low', 'medium', 'high', 'critical'];
@@ -62,6 +63,7 @@ const LABELS = {
   blocked: 'Blocked',
   resolved: 'Resolved',
   closed: 'Closed',
+  skipped: 'Skipped',
   low: 'Low',
   medium: 'Medium',
   high: 'High',
@@ -738,7 +740,7 @@ async function renderTickets(view, query, list) {
     timeFilters({ el, select }, query, update),
     list !== 'done' && !searching &&
       select('status', settings?.queue
-        ? [['active', 'Any progress'], ...TICKET_STATUSES.filter((s) => !['resolved', 'closed'].includes(s)).map((s) => [s, label(s)])]
+        ? [['active', 'Any progress'], ...TICKET_STATUSES.filter((s) => !['resolved', 'closed', 'skipped'].includes(s)).map((s) => [s, label(s)])]
         : [['active', 'Active'], ['all', 'All statuses'], ['done', 'Done'], ...TICKET_STATUSES.map((s) => [s, label(s)])],
       params.get('status') ?? 'active', (e) => update('status', e.target.value)),
     select('priority', [['', 'Any priority'], ...PRIORITIES.map((p) => [p, label(p)])], query.priority, (e) => update('priority', e.target.value)),
@@ -853,7 +855,7 @@ function bulkList(tickets, list, selectionToggle) {
     for (const button of bar.querySelectorAll('button[data-state]')) {
       button.hidden = !tickets.some(
         (task) =>
-          selected.has(task.id) &&
+          selected.has(task.id) && task.status !== 'skipped' &&
           (button.dataset.state === 'open' ? task.is_open : !task.is_open),
       );
     }
@@ -866,7 +868,7 @@ function bulkList(tickets, list, selectionToggle) {
       const ids = tickets
         .filter(
           (task) =>
-            selected.has(task.id) &&
+            selected.has(task.id) && task.status !== 'skipped' &&
             (!state || (state === 'open' ? task.is_open : !task.is_open)),
         )
         .map((task) => task.id);
@@ -971,7 +973,7 @@ function bulkList(tickets, list, selectionToggle) {
     el(
       'div',
       { class: 'ticket-list' },
-      ...tickets.map((t) => ticketRow(t, onToggle, list)),
+      ...tickets.map((t) => ticketRow(t, t.status === 'skipped' ? null : onToggle, list)),
     ),
   );
   if (selectionToggle) selectionToggle.onclick = () => {
@@ -1107,7 +1109,7 @@ function taskActions(ticket, includePlanning = true) {
             move('Save for Someday', { queue: 'someday' }),
           move('Mark Done', { status: 'resolved' }),
         ]
-      : [move('Reopen in Next', { status: 'open', queue: 'next' })]),
+      : ticket.status === 'skipped' ? [] : [move('Reopen in Next', { status: 'open', queue: 'next' })]),
   );
 }
 
@@ -1119,7 +1121,7 @@ async function renderTicketDetail(view, id) {
     api('/devices').catch(() => []),
   ]);
   const planning = await planningCard(ticket);
-  planning.append(el('button', { class: 'btn', onclick: guard(async event => {
+  planning.append(el('button', { class: 'btn', 'data-reuse-task': 'true', onclick: guard(async event => {
     event.currentTarget.disabled = true;
     try { const draft = reuseDraft(ticket); await putDraft(draft); location.hash = `#/capture?draft=${draft.id}`; }
     finally { event.currentTarget.disabled = false; }
@@ -1165,7 +1167,7 @@ async function renderTicketDetail(view, id) {
             el(
               'span',
               { class: 'badge queue-badge' },
-              ticket.is_open ? label(ticket.queue) : 'Done',
+              ticket.status === 'skipped' ? 'Skipped' : ticket.is_open ? label(ticket.queue) : 'Done',
             ),
             ...ticket.tags.map((tag) =>
               el('a', { class: 'tag', href: `#/tickets?tag=${tag}` }, tag),
@@ -1189,6 +1191,10 @@ async function renderTicketDetail(view, id) {
       ticketSidebar(ticket, devices, patch, id),
     ),
   );
+  if (ticket.status === 'skipped') {
+    view.prepend(el('section', { class: 'card skip-reason' }, el('h2', {}, 'Skipped occurrence'), el('p', {}, ticket.skip_reason), el('p', { class: 'muted' }, `Skipped ${new Date(ticket.skipped_at).toLocaleString()}. No completion credit. Original assignment retained.`)));
+    for (const control of view.querySelectorAll('input, textarea, select, button:not([data-reuse-task])')) control.disabled = true;
+  }
 }
 
 /** Reference material for a ticket: the thread that explained it, the runbook. */
@@ -1264,6 +1270,7 @@ function eventLine(event) {
   const from = event.from_value;
   const to = event.to_value;
   switch (event.kind) {
+    case 'skipped': return ['skipped occurrence: ', to];
     case 'queue':
       return [
         'list → ',
@@ -1548,7 +1555,7 @@ function ticketSidebar(ticket, devices, patch, id) {
     ),
     block(
       'Status',
-      select('status', TICKET_STATUSES, ticket.status, (e) => {
+      select('status', ticket.status === 'skipped' ? ['skipped'] : TICKET_STATUSES.filter(s => s !== 'skipped'), ticket.status, (e) => {
         const reopening =
           !ticket.is_open && !['resolved', 'closed'].includes(e.target.value);
         patch(
@@ -2783,7 +2790,7 @@ async function initSession() {
     guard(async () => {
       if (window.taskhubSyncBusy) { toast('Wait for sync to finish before signing out.'); return; }
       const local = await offlineState();
-      if (local.operations.length && !confirm('There are unsent changes. Sign out and discard them? Cancel to sync or export them from Offline & sync.')) { location.hash = '#/sync'; return; }
+      if ((local.operations.length || Object.values(local.focusDrafts || {}).some(d => d.text || d.pending)) && !confirm('There are unsent changes. Sign out and discard them? Cancel to sync or export them from Offline & sync.')) { location.hash = '#/sync'; return; }
       const pushId = localStorage.getItem('taskhub-push-id');
       if (pushId) await api(`/push/subscriptions/${pushId}`, { method: 'DELETE' });
       await api('/auth/logout', { method: 'POST' });

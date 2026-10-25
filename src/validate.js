@@ -12,11 +12,12 @@ export const DEVICE_TYPES = [
 
 export const DEVICE_STATUSES = ['active', 'spare', 'retired'];
 
-export const TICKET_STATUSES = ['open', 'in_progress', 'blocked', 'resolved', 'closed'];
+export const TICKET_STATUSES = ['open', 'in_progress', 'blocked', 'resolved', 'closed', 'skipped'];
 export const TICKET_QUEUES = ['inbox', 'next', 'someday'];
 
 /** Statuses that mean the ticket no longer needs attention. */
 export const CLOSED_STATUSES = ['resolved', 'closed'];
+export const TERMINAL_STATUSES = [...CLOSED_STATUSES, 'skipped'];
 
 export const PRIORITIES = ['low', 'medium', 'high', 'critical'];
 

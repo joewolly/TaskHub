@@ -1,4 +1,6 @@
 import { estimateOptions, matchesTime, timeFilters } from './time-estimates.js';
+import { online } from './workflows.js';
+import { randomId } from './uuid.js';
 /* Planning UI uses the existing DOM helpers and API, without a framework or build step. */
 let ui;
 export let planningDate = new Date().toISOString().slice(0, 10);
@@ -177,6 +179,7 @@ export async function planningCard(ticket) {
           button('Clear waiting', () => patch(ticket.id, { waiting_on: null })),
       ),
     el('div', { class: 'planning-badges' }, ...planningBadges(ticket)),
+    ticket.is_chore && ticket.is_open && button('Skip this occurrence…', () => skipChoreModal(ticket)),
     !ticket.schedule_id &&
       button('Make recurring…', () => recurrenceModal(ticket)),
     ticket.schedule_id &&
@@ -1006,9 +1009,27 @@ function memberSetup(members) {
   });
 }
 
+function skipChoreModal(item) {
+  const { el, field, openModal } = ui;
+  const reason = el('textarea', { name: 'reason', required: true, maxlength: 500 });
+  const key = randomId();
+  let payload;
+  openModal('Skip this chore occurrence', () => el('div', {},
+    el('p', {}, `${item.title} will be recorded as skipped, with no completion credit. Calendar chores keep their cadence. Completion-based chores become due N days after this skip.`),
+    el('p', { class: 'muted' }, 'This keeps the original assignment in history. Skips cannot be reopened; use task reuse if the work becomes necessary again.'),
+    field('Reason', reason)), async data => {
+    if (!data.reason.trim()) throw new Error('A skip reason is required.');
+    payload ||= { reason: data.reason.trim(), revision: item.revision };
+    reason.readOnly = true;
+    await online(`/tickets/${item.id}/skip`, { method: 'POST', key, body: payload });
+    await ui.render();
+  });
+}
+
 function choreCard(item, members, today) {
   const { el, api, field, select } = ui;
-  const overdue = item.status !== 'resolved' && item.status !== 'closed' && item.due_date < today;
+  const skipped = item.status === 'skipped';
+  const overdue = !skipped && item.status !== 'resolved' && item.status !== 'closed' && item.due_date < today;
   const completed = item.status === 'resolved' || item.status === 'closed';
   const memberOptions = members.map((m) => [m.id, m.name]);
   const assignmentEvents = (item.events || []).filter((event) => event.kind === 'assignee');
@@ -1026,14 +1047,16 @@ function choreCard(item, members, today) {
       el('span', { class: 'chore-date' }, prettyDate(item.due_date, { weekday: 'short', month: 'short', day: 'numeric' })),
       el('div', { class: 'chore-copy' },
         el('a', { class: 'chore-title', href: `#/tickets/${item.id}` }, item.title),
-        el('span', { class: `chore-status${overdue ? ' overdue' : ''}` }, completed ? 'Done' : overdue ? 'Overdue' : (item.status === 'in_progress' ? 'In progress' : item.status === 'blocked' ? 'Blocked' : 'To do')),
+        el('span', { class: `chore-status${overdue ? ' overdue' : ''}` }, skipped ? 'Skipped · no completion credit' : completed ? 'Done' : overdue ? 'Overdue' : (item.status === 'in_progress' ? 'In progress' : item.status === 'blocked' ? 'Blocked' : 'To do')),
       ),
-      field('Assigned to', select(`assignee_${item.id}`, memberOptions, item.assignee_id, ui.guard(async (e) => {
+      skipped ? el('p', {}, `Assigned to ${item.assignee_name}`) : field('Assigned to', select(`assignee_${item.id}`, memberOptions, item.assignee_id, ui.guard(async (e) => {
         await api(`/tickets/${item.id}`, { method: 'PATCH', body: { assignee_id: Number(e.target.value) } });
         await ui.render();
       }))),
     ),
-    !completed && el('div', { class: 'chore-card-actions' },
+    skipped && el('p', { class: 'skip-reason' }, `Skipped ${new Date(item.skipped_at).toLocaleDateString()}: ${item.skip_reason}`),
+    !completed && !skipped && el('div', { class: 'chore-card-actions' },
+      button('Skip…', () => skipChoreModal(item)),
       el('button', { type: 'button', class: 'btn btn-sm chore-done', onclick: ui.guard(async () => {
         await api(`/tickets/${item.id}`, { method: 'PATCH', body: { status: 'resolved' } });
         await ui.render();
@@ -1063,7 +1086,7 @@ async function renderChores(view, query = {}) {
       }),
     ),
   ));
-  const dayCount = payload.assignments.filter((a) => a.status !== 'resolved' && a.status !== 'closed').length;
+  const dayCount = payload.assignments.filter((a) => !['resolved', 'closed', 'skipped'].includes(a.status)).length;
   const dayLabel = currentWeek ? 'This week' : (start > weekStart(payload.today) ? 'Coming up' : 'Past week');
   view.append(el('section', { class: 'chores-hero' },
     el('div', { class: 'chores-kicker' }, 'THE HOME ROUTINE'),

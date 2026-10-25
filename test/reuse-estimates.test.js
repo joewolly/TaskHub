@@ -53,7 +53,7 @@ test('estimate migration upgrades populated prior schema without changing tasks 
   const dir = await mkdtemp(join(tmpdir(), 'taskhub-estimates-')); t.after(() => rm(dir, { recursive: true, force: true }));
   const file = join(dir, 'test.db'); let db = openDatabase(file);
   const ticket = createTicket(db, { title: 'Existing task', checklist: ['Existing step'] });
-  db.exec('DROP TABLE backup_status; ALTER TABLE tickets DROP COLUMN estimate_minutes; PRAGMA user_version = 10'); db.close();
+  db.exec('ALTER TABLE tickets DROP COLUMN skipped_at; ALTER TABLE tickets DROP COLUMN skip_reason; DROP TABLE backup_status; ALTER TABLE tickets DROP COLUMN estimate_minutes; PRAGMA user_version = 10'); db.close();
   db = openDatabase(file);
   try { const upgraded = getTicket(db, ticket.id); assert.equal(upgraded.estimate_minutes, null); assert.deepEqual(upgraded.checklist, ticket.checklist); assert.equal(db.prepare('PRAGMA integrity_check').get().integrity_check, 'ok'); }
   finally { db.close(); }

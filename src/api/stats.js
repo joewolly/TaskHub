@@ -1,7 +1,7 @@
-import { CLOSED_STATUSES } from '../validate.js';
+import { TERMINAL_STATUSES } from '../validate.js';
 import { followUps } from '../notify.js';
 
-const CLOSED_LIST = CLOSED_STATUSES.map((s) => `'${s}'`).join(', ');
+const CLOSED_LIST = TERMINAL_STATUSES.map((s) => `'${s}'`).join(', ');
 
 /** Number of days without an update before an open ticket is "stale". */
 const STALE_AFTER_DAYS = 14;

@@ -1,11 +1,11 @@
 import {
-  CLOSED_STATUSES,
+  TERMINAL_STATUSES,
   PRIORITIES,
   TICKET_STATUSES,
   DEVICE_STATUSES,
 } from '../validate.js';
 
-const CLOSED_LIST = CLOSED_STATUSES.map((s) => `'${s}'`).join(', ');
+const CLOSED_LIST = TERMINAL_STATUSES.map((s) => `'${s}'`).join(', ');
 
 const STALE_AFTER_DAYS = 14;
 

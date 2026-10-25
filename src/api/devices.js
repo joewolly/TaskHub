@@ -1,7 +1,7 @@
 import {
   DEVICE_TYPES,
   DEVICE_STATUSES,
-  CLOSED_STATUSES,
+  TERMINAL_STATUSES,
   NotFoundError,
   ValidationError,
   oneOf,
@@ -12,7 +12,7 @@ import {
   requiredText,
 } from '../validate.js';
 
-const CLOSED_LIST = CLOSED_STATUSES.map((s) => `'${s}'`).join(', ');
+const CLOSED_LIST = TERMINAL_STATUSES.map((s) => `'${s}'`).join(', ');
 
 // The correlated count of a device's unresolved tickets, shared by the device
 // read and the dependents query so the two can never drift out of step.

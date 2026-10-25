@@ -81,6 +81,13 @@ The list stays on this device and can safely resume after an interrupted save.
 
 ## Daily planning
 
+- **Review Today** walks through dates, follow-ups, older tasks, and Today choices.
+- **Do now** focuses on one Today task, with notes, checklist, Done, and Next.
+- **Use this task again** creates an editable draft with a reset checklist.
+- **Time available** filters tasks by optional 5/15/30/60-minute estimates.
+- **Skip a chore** records an unnecessary occurrence without completion credit.
+- **Backup status** in App & notifications shows successes, failures and overdue runs.
+
 - **Today** is your ordered focus list. Selections stay until completed or
   removed; choosing Today moves a task to Next without changing its deadline.
 - **Snooze** hides a task until tomorrow, next Monday, or a chosen date. It

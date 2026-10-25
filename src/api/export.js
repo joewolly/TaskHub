@@ -1,6 +1,6 @@
-import { CLOSED_STATUSES, TICKET_STATUSES, oneOf } from '../validate.js';
+import { TERMINAL_STATUSES, TICKET_STATUSES, oneOf } from '../validate.js';
 
-const CLOSED_LIST = CLOSED_STATUSES.map((s) => `'${s}'`).join(', ');
+const CLOSED_LIST = TERMINAL_STATUSES.map((s) => `'${s}'`).join(', ');
 
 export const EXPORT_ENTITIES = [
   'tickets',
@@ -37,6 +37,10 @@ const COLUMNS = {
     'waiting_on',
     'follow_up_date',
     'estimate_minutes',
+    'skipped_at',
+    'skip_reason',
+    'assignee_id',
+    'original_due_date',
   ],
   devices: [
     'id',
@@ -86,7 +90,7 @@ const QUERIES = {
               JOIN tags tg ON tg.id = tt.tag_id WHERE tt.ticket_id = t.id) AS tags,
            t.due_date, t.created_at, t.updated_at, t.resolved_at,
            (SELECT COUNT(*) FROM comments c WHERE c.ticket_id = t.id) AS comments,
-           t.body, t.queue, t.project_id, t.today_rank, t.snoozed_until, t.waiting_on, t.follow_up_date, t.estimate_minutes
+           t.body, t.queue, t.project_id, t.today_rank, t.snoozed_until, t.waiting_on, t.follow_up_date, t.estimate_minutes, t.skipped_at, t.skip_reason, t.assignee_id, t.original_due_date
       FROM tickets t
       LEFT JOIN devices d ON d.id = t.device_id`,
 

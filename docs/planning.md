@@ -133,6 +133,22 @@ days**, not monthly. Pausing or deleting a schedule preserves its task history.
 
 ## Shared household chores
 
+Use **Skip…** on an unfinished chore (or **Skip this occurrence…** in task
+planning) when the work is unnecessary this time. Supply a reason. A skip keeps
+the assignment and audit history, earns no completion credit, and cannot be
+reopened or deleted. Task reuse can create independent work if needed later.
+Calendar chores retain their cadence; after-completion chores next occur N days
+after the skip date in the app timezone. Assignment-based rotation retains the
+original assignment totals; skipped work stops being unfinished carryover.
+See the [full skip contract](chore-skipping.md).
+
+`POST /api/tickets/:id/skip` requires authentication, an `Idempotency-Key`, and
+`{ "reason": "Not needed this time", "revision": <current task revision> }`.
+A stale revision returns 409. Retrying the same submission recovers its receipt.
+`skipped` is a terminal, non-completion status: it appears in All, filters,
+exports and chore history, and is excluded from active work, Done, and completion
+counts. The UI requires a connection to skip.
+
 Open **Chores** to set the two household display names and add chore templates.
 The app still has one shared sign-in: either person can see and edit every task.
 Chores are opt-in, use the recurrence rules above, and create new ordinary tasks

@@ -30,7 +30,7 @@ export async function renderReview(view, query, ui) {
   const { el, guard } = ui;
   const [planning, tasks] = await Promise.all([online('/planning'), online('/tickets?status=active&sort=oldest')]);
   const groups = reviewGroups(tasks, planning.today);
-  const step = Math.max(0, Math.min(2, Number(query.step) || 0));
+  const step = Math.max(0, Math.min(2, Math.trunc(Number(query.step) || 0)));
   const group = groups[step];
   view.append(el('div', { class: 'page-head' }, el('div', {}, el('h1', {}, 'Review Today'), el('p', {}, `Step ${step + 1} of 3 · ${group.title}`)), el('a', { class: 'btn', href: '#/today' }, 'Finish review')),
     el('p', {}, group.text), el('p', { class: 'muted' }, 'Opening or leaving this review changes nothing. Each action saves immediately.'));
@@ -79,8 +79,14 @@ export async function renderFocus(view, query, ui) {
   };
   const controls = el('fieldset', { class: 'focus-controls' });
   const status = el('p', { role: 'status' });
+  const retry = el('button', { type: 'button', class: 'btn', hidden: !draft.pending, onclick: guard(async () => {
+    if (draft.pending) await mutate(draft.pending.kind, draft.pending.changes);
+  }) }, 'Retry unfinished action');
   const mutate = async (kind, changes) => {
-    if (draft.pending && JSON.stringify([draft.pending.kind, draft.pending.changes]) !== JSON.stringify([kind, changes])) throw new Error('Retry the unfinished action before making another change.');
+    if (draft.pending && JSON.stringify([draft.pending.kind, draft.pending.changes]) !== JSON.stringify([kind, changes])) {
+      status.textContent = 'Retry the unfinished action before making another change.';
+      return;
+    }
     draft.pending ||= { id: randomId(), ticket_id: id, revision: task.revision, kind, changes };
     controls.disabled = true;
     try {
@@ -100,7 +106,7 @@ export async function renderFocus(view, query, ui) {
       }
       await ui.render();
     } catch (error) { status.textContent = error.message + (draft.pending ? ' Retry the same action to recover its result.' : ''); }
-    finally { controls.disabled = false; }
+    finally { controls.disabled = false; retry.hidden = !draft.pending; }
   };
   controls.append(el('h2', {}, task.title), task.body && el('p', { class: 'preserve-lines' }, task.body));
   for (const item of task.checklist) controls.append(el('label', { class: 'focus-check' }, el('input', { type: 'checkbox', checked: Boolean(item.completed), onchange: async event => {
@@ -111,7 +117,7 @@ export async function renderFocus(view, query, ui) {
   controls.append(el('h3', {}, 'Notes'), ...task.comments.map(note => el('p', { class: 'preserve-lines' }, note.body)));
   const note = el('textarea', { name: 'focus-note', 'aria-label': 'New note', maxlength: 20000, readonly: Boolean(draft.pending?.kind === 'note'), oninput: event => { draft.text = event.target.value; persist().catch(error => { status.textContent = 'Could not save your note on this device: ' + error.message; }); } }, draft.text);
   const form = el('form', { onsubmit: guard(async event => { event.preventDefault(); if (!draft.text.trim()) return; await mutate('note', { body: draft.text }); note.readOnly = Boolean(draft.pending?.kind === 'note'); }) }, note, el('button', { class: 'btn', type: 'submit' }, 'Save note'));
-  controls.append(form);
+  controls.append(form, retry);
   const next = tasks[tasks.findIndex(t => t.id === id) + 1];
   controls.append(el('div', { class: 'planning-actions' },
     el('button', { class: 'btn btn-primary', onclick: guard(async () => { if (draft.text || draft.pending?.kind === 'note') throw new Error('Save your note before finishing the task.'); await mutate('edit', { status: 'resolved' }); }) }, 'Done'),

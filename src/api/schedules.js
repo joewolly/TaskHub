@@ -89,7 +89,7 @@ export function getChoreRoster(db, { week, today: suppliedToday } = {}) {
     .prepare(
       `SELECT t.id, t.schedule_id, t.assignee_id,
               m.name AS assignee_name, t.due_date, t.original_due_date,
-              t.status, t.title,
+              t.status, t.title, t.revision, t.skipped_at, t.skip_reason,
               COALESCE(t.original_due_date, t.due_date) AS assignment_date
          FROM tickets t
          JOIN schedules s ON s.id = t.schedule_id AND s.is_chore = 1
@@ -97,7 +97,7 @@ export function getChoreRoster(db, { week, today: suppliedToday } = {}) {
         WHERE (
           COALESCE(t.original_due_date, t.due_date) BETWEEN ? AND ?
           OR (COALESCE(t.original_due_date, t.due_date) < ?
-              AND t.status NOT IN ('resolved', 'closed'))
+              AND t.status NOT IN ('resolved', 'closed', 'skipped'))
         )
         ORDER BY assignment_date, t.id`,
     )
@@ -115,7 +115,7 @@ export function getChoreRoster(db, { week, today: suppliedToday } = {}) {
       .prepare(
         `SELECT id, due_date, original_due_date
            FROM tickets
-          WHERE schedule_id = ? AND status NOT IN ('resolved', 'closed')
+          WHERE schedule_id = ? AND status NOT IN ('resolved', 'closed', 'skipped')
           ORDER BY id DESC LIMIT 1`,
       )
       .get(chore.id);
@@ -189,7 +189,7 @@ export function getSchedule(db, id) {
   const tickets = db
     .prepare(
       `SELECT id, title, status, priority, due_date, resolved_at, created_at,
-              assignee_id, original_due_date
+              assignee_id, original_due_date, skipped_at, skip_reason
          FROM tickets WHERE schedule_id = ? ORDER BY created_at DESC LIMIT 20`,
     )
     .all(id);
@@ -335,7 +335,7 @@ export function runSchedules(db, { today, onlyChores = false } = {}) {
         schedule.recurrence &&
         db
           .prepare(
-            "SELECT 1 FROM tickets WHERE schedule_id = ? AND status NOT IN ('resolved','closed') LIMIT 1",
+            "SELECT 1 FROM tickets WHERE schedule_id = ? AND status NOT IN ('resolved','closed','skipped') LIMIT 1",
           )
           .get(schedule.id)
       )
@@ -446,7 +446,7 @@ function runChoreSchedule(db, staleSchedule, today) {
     if (
       db
         .prepare(
-          "SELECT 1 FROM tickets WHERE schedule_id = ? AND status NOT IN ('resolved','closed') LIMIT 1",
+          "SELECT 1 FROM tickets WHERE schedule_id = ? AND status NOT IN ('resolved','closed','skipped') LIMIT 1",
         )
         .get(schedule.id)
     )
@@ -494,7 +494,7 @@ function chooseAssignee(db, scheduleId, weekStart, weekEnd) {
                 SUM(CASE
                   WHEN COALESCE(original_due_date, due_date) BETWEEN ? AND ?
                     OR (COALESCE(original_due_date, due_date) < ?
-                        AND status NOT IN ('resolved', 'closed'))
+                        AND status NOT IN ('resolved', 'closed', 'skipped'))
                   THEN 1 ELSE 0 END) AS week_count,
                 SUM(CASE
                   WHEN COALESCE(original_due_date, due_date) BETWEEN ? AND ?

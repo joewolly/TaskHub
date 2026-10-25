@@ -42,6 +42,7 @@ export function recordChanges(
   const changed = (key) =>
     Object.hasOwn(after, key) && after[key] !== before[key];
   for (const key of [
+    'estimate_minutes',
     'project_id',
     'today_rank',
     'snoozed_until',

@@ -253,6 +253,8 @@ export function projects(db, id, input = {}, method = 'GET') {
 }
 
 const FILTERS = new Set([
+  'max_minutes',
+  'include_unestimated',
   'status',
   'queue',
   'priority',

@@ -1,3 +1,4 @@
+import { estimateOptions } from './time-estimates.js';
 import { preparePhoto } from './photos.js';
 import { randomId } from './uuid.js';
 import { invalidateNavigationReads } from './offline.js';
@@ -248,6 +249,19 @@ export async function renderCapture(view, query = {}) {
     ),
   );
   const optional = fields.querySelector('details');
+  optional.append(field('Time estimate (optional)', select('estimate_minutes', estimateOptions, draft.estimate_minutes || '', event => { draft.estimate_minutes = event.target.value; persist(); })));
+  if (draft.reused) {
+    const steps = el('div', { class: 'reuse-checklist' });
+    const showSteps = () => {
+      steps.replaceChildren(...(draft.checklist || []).map((title, index) => el('div', {},
+        field(`Checklist step ${index + 1}`, el('textarea', { maxlength: 500, required: true, oninput: event => { draft.checklist[index] = event.target.value; persist(); } }, title)),
+        el('button', { class: 'btn btn-sm', type: 'button', onclick: () => { draft.checklist.splice(index, 1); persist(); showSteps(); } }, 'Remove step'))));
+    };
+    showSteps();
+    fields.append(el('p', {}, 'New independent task: all checklist steps start unchecked. Review the project and device in Optional details before saving. The original task stays unchanged.'), steps,
+      el('button', { type: 'button', class: 'btn', onclick: () => { if (draft.checklist.length < 100) { draft.checklist.push(''); persist(); showSteps(); } } }, 'Add checklist step'));
+    optional.open = true;
+  }
   // Choices are helpful online, but an unavailable server must never block capture.
   const loadChoices = async () => {
     try {
@@ -464,6 +478,8 @@ export async function renderCapture(view, query = {}) {
                 .filter(Boolean),
               project_id: draft.project_id || null,
               device_id: draft.device_id || null,
+              estimate_minutes: draft.estimate_minutes ? Number(draft.estimate_minutes) : null,
+              ...(draft.reused ? { checklist: [...draft.checklist] } : {}),
             };
             await persist();
           }

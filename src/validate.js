@@ -20,6 +20,13 @@ export const CLOSED_STATUSES = ['resolved', 'closed'];
 
 export const PRIORITIES = ['low', 'medium', 'high', 'critical'];
 
+export function optionalEstimate(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (![5, 15, 30, 60, '5', '15', '30', '60'].includes(value))
+    throw new ValidationError('Time estimate must be 5, 15, 30, or 60 minutes');
+  return Number(value);
+}
+
 /** Thrown for bad input; the server turns this into a 400. */
 export class ValidationError extends Error {
   constructor(message) {

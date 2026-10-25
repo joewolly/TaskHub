@@ -1,3 +1,6 @@
+import { reuseDraft } from './task-reuse.js';
+import { putDraft } from './draft-store.js';
+import { timeFilters } from './time-estimates.js';
 import { renderReview, renderFocus } from './workflows.js';
 import { offlineApi, setupOffline, offlineState, clearOffline, renderSync, invalidateNavigationReads } from './offline.js';
 import { renderSettings } from './settings.js';
@@ -732,6 +735,7 @@ async function renderTickets(view, query, list) {
   search.setAttribute('aria-label', 'Search all tasks and notes');
 
   const advancedFilters = el('div', { class: 'advanced-filters', id: 'task-filters' },
+    timeFilters({ el, select }, query, update),
     list !== 'done' && !searching &&
       select('status', settings?.queue
         ? [['active', 'Any progress'], ...TICKET_STATUSES.filter((s) => !['resolved', 'closed'].includes(s)).map((s) => [s, label(s)])]
@@ -750,7 +754,7 @@ async function renderTickets(view, query, list) {
       filterButton.setAttribute('aria-expanded', String(!advancedFilters.hidden));
     },
   }, 'Filters ▾');
-  advancedFilters.hidden = !['priority', 'device_id', 'tag', 'status'].some((key) => query[key] && query[key] !== settings?.status);
+  advancedFilters.hidden = !['priority', 'device_id', 'tag', 'status', 'max_minutes'].some((key) => query[key] && query[key] !== settings?.status);
   filterButton.setAttribute('aria-expanded', String(!advancedFilters.hidden));
   const selectionToggle = el('button', { type: 'button', class: 'mobile-selection-toggle', 'aria-pressed': 'false', hidden: tickets.length === 0 }, 'Select');
 
@@ -1115,6 +1119,11 @@ async function renderTicketDetail(view, id) {
     api('/devices').catch(() => []),
   ]);
   const planning = await planningCard(ticket);
+  planning.append(el('button', { class: 'btn', onclick: guard(async event => {
+    event.currentTarget.disabled = true;
+    try { const draft = reuseDraft(ticket); await putDraft(draft); location.hash = `#/capture?draft=${draft.id}`; }
+    finally { event.currentTarget.disabled = false; }
+  }) }, 'Use this task again'));
 
   const patch = guard(async (changes) => {
     await api(`/tickets/${id}`, { method: 'PATCH', body: changes });

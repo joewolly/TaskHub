@@ -25,6 +25,20 @@ remain available through Today and Offline & sync.
 
 ## Choose what to do
 
+**Use this task again** on task details creates a device-local draft containing
+the title, description, tags, project/device choices, time estimate, and checklist.
+Review or change these before saving. All steps start unchecked; dates, progress,
+Today selection, assignment, recurrence, notes/history, links, and attachments
+are not copied. The new task and checklist are created atomically with the
+existing submission identity, including retries after reload or a lost response.
+
+Optional **time estimates** are 5, 15, 30, or 60 minutes. Set them in capture or
+task planning. Next/Tasks and Today can filter by available time, with an explicit
+option to include tasks without estimates (enabled by default). Saved views and
+CSV/JSON exports retain these values; offline filtering uses the same rules.
+Reused tasks retain estimates for review. Routine templates are unchanged and
+new recurring occurrences start without an estimate. Clear Today filters to reorder.
+
 Use **Today** on a task or select several tasks and choose **Add to Today**.
 Selections move to Next and persist across days and devices. Drag to reorder
 on a desktop or use the move controls on any device. The Deadlines section

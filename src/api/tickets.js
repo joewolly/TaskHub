@@ -23,6 +23,8 @@ import {
   requiredId,
   requiredText,
   tagList,
+  optionalEstimate,
+  boolean,
 } from '../validate.js';
 
 const CLOSED_LIST = CLOSED_STATUSES.map((s) => `'${s}'`).join(', ');
@@ -65,6 +67,12 @@ export function listTickets(db, query = {}) {
   const where = [];
   const params = {};
   planningFilter(query, where, params, dateFor(db));
+  if (query.max_minutes !== undefined && query.max_minutes !== '') {
+    params.max_minutes = optionalEstimate(query.max_minutes);
+    if (params.max_minutes === null) throw new ValidationError('Maximum time is required');
+    const include = query.include_unestimated === undefined ? true : boolean(query.include_unestimated, 'include_unestimated');
+    where.push(`(t.estimate_minutes <= :max_minutes${include ? ' OR t.estimate_minutes IS NULL' : ''})`);
+  } else if (query.include_unestimated !== undefined) boolean(query.include_unestimated, 'include_unestimated');
 
   // `status=active` is the default view: everything still needing attention.
   if (query.status === 'active' || (!query.status && query.status !== '')) {
@@ -164,6 +172,9 @@ export function getTicket(db, id) {
 export function createTicket(db, input = {}, { scheduleId = null } = {}) {
   const fields = parseTicket(input, { partial: false });
   const tags = tagList(input.tags) ?? [];
+  const steps = input.checklist ?? [];
+  if (!Array.isArray(steps) || steps.length > 100) throw new ValidationError('Checklist must contain at most 100 steps');
+  const titles = steps.map(title => requiredText(title, 'checklist step', 500));
 
   if (fields.device_id !== null) assertDeviceExists(db, fields.device_id);
   fields.resolved_at = CLOSED_STATUSES.includes(fields.status)
@@ -185,6 +196,8 @@ export function createTicket(db, input = {}, { scheduleId = null } = {}) {
 
     const id = Number(lastInsertRowid);
     setTags(db, id, tags);
+    const insertStep = db.prepare('INSERT INTO checklist_items(ticket_id, title, completed, position) VALUES (?, ?, 0, ?)');
+    titles.forEach((title, index) => insertStep.run(id, title, index));
     recordEvent(db, id, 'created');
     return getTicket(db, id);
   });
@@ -426,6 +439,7 @@ export function listTags(db) {
 function parseTicket(input, { partial }) {
   const fields = planningFields(input, partial);
   const has = (key) => Object.hasOwn(input, key);
+  if (!partial || has('estimate_minutes')) fields.estimate_minutes = optionalEstimate(input.estimate_minutes);
 
   if (!partial || has('title'))
     fields.title = requiredText(input.title, 'title', 200);

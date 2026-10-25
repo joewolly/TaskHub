@@ -333,6 +333,8 @@ const MIGRATIONS = [
     PRIMARY KEY(subscription_id, event_key)
   );
   `,
+  `ALTER TABLE tickets ADD COLUMN estimate_minutes INTEGER
+    CHECK (estimate_minutes IS NULL OR estimate_minutes IN (5, 15, 30, 60));`,
 
 ];
 

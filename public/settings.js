@@ -12,12 +12,12 @@ export async function renderSettings(view, ui) {
       const state = await api('/backup/status');
       const labels = { healthy: 'Snapshot up to date', failed: 'Last backup failed', overdue: 'Backup overdue', unknown: 'No backup result recorded', disabled: 'Automatic backups disabled' };
       const date = value => value ? new Date(value).toLocaleString() : 'None recorded';
-      backup.append(el('p', { role: 'status' }, labels[state.status]),
+      backup.append(...[el('p', { role: 'status' }, labels[state.status]),
         el('p', {}, `Last successful snapshot: ${date(state.last_success_at)}`),
         el('p', {}, `Last failed attempt: ${date(state.last_failure_at)}`),
         state.last_failure_at && el('p', {}, ({ storage_full: 'Storage was full.', permission_denied: 'The backup location could not be accessed.', backup_failed: 'The backup could not be completed. Check server logs and storage.' })[state.failure_code]),
         state.enabled && el('p', {}, `Scheduled every ${state.interval_hours} hours; keep ${state.keep} snapshots. Next expected: ${date(state.next_due_at)}. Overdue includes a five-minute grace period.`),
-        !state.status_persisted && el('p', { class: 'error' }, 'The latest failure could not be saved to server storage. This status may be lost on restart.'));
+        !state.status_persisted && el('p', { class: 'error' }, 'The latest failure could not be saved to server storage. This status may be lost on restart.')].filter(Boolean));
     } catch { backup.append(el('p', { role: 'status' }, 'Backup status is unavailable. Reconnect and refresh to check.')); }
     backup.append(el('p', { class: 'muted' }, 'A successful snapshot is not a verified restore. The usual backup volume is on the same server and does not protect against host loss. Device-local drafts and unsent changes are excluded.'),
       el('a', { href: 'https://github.com/joewolly/TaskHub/blob/main/docs/deployment.md#backups-upgrade-and-recovery', target: '_blank', rel: 'noopener' }, 'Recovery instructions'),

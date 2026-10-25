@@ -37,11 +37,13 @@ const dayPlus = (days) => {
 };
 
 export async function refreshPlanning() {
-  const { today } = await ui.api('/planning');
-  planningDate = today;
   const nav = document.getElementById('saved-views-nav');
+  const [{ today }, views] = await Promise.all([
+    ui.api('/planning'),
+    nav ? ui.api('/views') : Promise.resolve([]),
+  ]);
+  planningDate = today;
   if (nav) {
-    const views = await ui.api('/views');
     nav.replaceChildren(
       ...views.map((v) => ui.el('a', { href: `#/views/${v.id}` }, v.name)),
     );
@@ -308,9 +310,11 @@ function taskRows(tasks) {
 
 async function renderToday(view) {
   const { el, api } = ui;
-  const tasks = await api('/tickets?today=true&sort=today');
-  const due = await api('/tickets?due=week&sort=due');
-  const overdue = await api('/tickets?due=overdue&sort=due');
+  const [tasks, due, overdue] = await Promise.all([
+    api('/tickets?today=true&sort=today'),
+    api('/tickets?due=week&sort=due'),
+    api('/tickets?due=overdue&sort=due'),
+  ]);
   view.append(
     heading(
       'Today',

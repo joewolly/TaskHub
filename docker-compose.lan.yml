@@ -1,0 +1,22 @@
+# Linux Docker host: add after docker-compose.private.yml.
+# TASK_HUB_LAN_IP must be the host's LAN address, never 0.0.0.0.
+services:
+  lan:
+    image: ${TASK_HUB_LAN_PROXY_IMAGE:-nginx:stable-alpine}
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TASK_HUB_LAN_IP: ${TASK_HUB_LAN_IP:?Set TASK_HUB_LAN_IP to the Docker host LAN address}
+      TASK_HUB_LAN_PORT: ${TASK_HUB_LAN_PORT:-8080}
+      TASK_HUB_PORT: ${TASK_HUB_PORT:-8080}
+      NGINX_ENVSUBST_FILTER: ^TASK_HUB_
+    volumes:
+      - ./deploy/lan.conf.template:/etc/nginx/templates/default.conf.template:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://$${TASK_HUB_LAN_IP}:$${TASK_HUB_LAN_PORT}/login"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      ticket:
+        condition: service_healthy

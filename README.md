@@ -349,6 +349,9 @@ ignored.
 | `TZ`                           | `UTC`               | Container timezone                             |
 | `APP_TIME_ZONE`                | `America/Denver`    | Civil dates for planning, deadlines, follow-ups, and new routines; legacy schedules retain UTC |
 
+To add LAN HTTP alongside Tailscale HTTPS, use the optional
+[LAN deployment override](docs/deployment.md#lan-access-alongside-tailscale).
+
 Docker Compose also reads `TASK_HUB_PORT` (the loopback host port, default
 `8080`) and `TASK_HUB_VERSION` (the image tag, default `latest`; set it to the
 deployed commit so rollback has a known image).

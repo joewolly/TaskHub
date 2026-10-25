@@ -1,3 +1,9 @@
+import { randomId } from './uuid.js';
+import { createReadCache } from './read-cache.js';
+
+const navigationReads = createReadCache();
+export function invalidateNavigationReads() { navigationReads.clear(); }
+
 // One atomic IndexedDB record keeps snapshots and the durable outbox consistent.
 let connection;
 let lastError = '';
@@ -86,12 +92,27 @@ async function cached(path) {
   throw new Error('This screen needs a connection. Active tasks and checklists remain available in Home, Today, Inbox, and Tasks.');
 }
 async function request(path, options = {}) {
+  const method = options.method || 'GET';
+  if (method !== 'GET') {
+    navigationReads.clear();
+    try { return await fetchRequest(path, options); }
+    finally { navigationReads.clear(); }
+  }
+  if (/^\/(planning|views|devices|tags|stats|tickets)(\?|$)/.test(path)) {
+    return navigationReads.get(path, () => fetchRequest(path, options));
+  }
+  return fetchRequest(path, options);
+}
+async function fetchRequest(path, options) {
   let response;
   try { response = await fetch('/api' + path, { ...options, signal: AbortSignal.timeout(12000) }); }
   catch { disconnected = true; throw new Error('Task Hub is unreachable. Your saved changes will retry when connected.'); }
   disconnected = false;
   const body = response.status === 204 ? null : await response.json();
-  if (!response.ok) { const error = new Error(body?.error || `HTTP ${response.status}`); error.status = response.status; throw error; }
+  if (!response.ok) {
+    if (response.status === 401) navigationReads.clear();
+    const error = new Error(body?.error || `HTTP ${response.status}`); error.status = response.status; throw error;
+  }
   return body;
 }
 function operation(path, method, body, task) {
@@ -108,7 +129,7 @@ function operation(path, method, body, task) {
   else return null;
   if ('title' in changes && (typeof changes.title !== 'string' || !changes.title.trim() || changes.title.trim().length > 200)) throw new Error('Use a task title between 1 and 200 characters.');
   if ('body' in changes && (typeof changes.body !== 'string' || changes.body.length > 20000 || kind === 'note' && !changes.body.trim())) throw new Error('Notes must contain text and be no longer than 20,000 characters.');
-  return { id: crypto.randomUUID(), ticket_id: task.id, revision: task.revision, kind, changes, created_at: new Date().toISOString() };
+  return { id: randomId(), ticket_id: task.id, revision: task.revision, kind, changes, created_at: new Date().toISOString() };
 }
 export async function offlineApi(path, { method = 'GET', body } = {}) {
   const id = Number(path.match(/^\/tickets\/(\d+)/)?.[1]);
@@ -117,6 +138,7 @@ export async function offlineApi(path, { method = 'GET', body } = {}) {
     const task = overlay(state).find(t => t.id === id);
     const op = task && operation(path, method, body, task);
     if (op) {
+      navigationReads.clear();
       await offlineState(s => { s.operations.push(op); });
       await updateStatus();
       void syncNow();
@@ -175,15 +197,21 @@ export function syncNow() {
         });
       }
       const snapshot = await request('/sync/snapshot');
+      let changed;
       await offlineState(s => {
+        // The sync timestamp changes on every check; it is not a task data change.
+        const { synced_at: previousTime, ...previousData } = s.snapshot || {};
+        const { synced_at: currentTime, ...currentData } = snapshot;
+        changed = JSON.stringify(previousData) !== JSON.stringify(currentData);
         const pending = new Set(s.operations.map(o => o.ticket_id));
         s.tasks = snapshot.tasks.concat(s.tasks.filter(t => pending.has(t.id) && !snapshot.tasks.some(n => n.id === t.id)));
         s.snapshot = snapshot;
       });
+      if (changed) navigationReads.clear();
       lastError = '';
       const badge = snapshot.tasks.filter(t => t.today_rank !== null || t.due_date && t.due_date <= snapshot.planning.today || t.waiting_on && t.follow_up_date && t.follow_up_date <= snapshot.planning.today).length;
       try { if (badge) await navigator.setAppBadge?.(badge); else await navigator.clearAppBadge?.(); } catch {}
-      dispatchEvent(new Event('taskhub-synced'));
+      dispatchEvent(new CustomEvent('taskhub-synced', { detail: { changed } }));
     } catch (error) {
       lastError = error.message;
       if (error.status === 401) { await offlineState(s => { s.locked = true; }); lastError = 'Sign in again to synchronize. Unsent work is retained.'; }
@@ -223,6 +251,7 @@ export async function updateStatus() {
   const link = document.createElement('a'); link.href = '#/sync'; link.textContent = 'Sync & details'; node.append(link);
 }
 export async function clearOffline() {
+  navigationReads.clear();
   await offlineState(s => Object.assign(s, empty(), { locked: true }));
   await navigator.clearAppBadge?.();
 }
@@ -261,13 +290,13 @@ export async function renderSync(view, ui) {
         await offlineState(s => { s.operations = s.operations.filter(o => o.ticket_id !== op.ticket_id); }); await syncNow(); await ui.render();
       }));
       if (op.problem.task) card.append(button('Apply my changes', async () => {
-        await offlineState(s => { const current = s.operations.find(o => o.id === op.id); current.revision = current.problem.task.revision; current.id = crypto.randomUUID(); delete current.problem; }); await syncNow(); await ui.render();
+        await offlineState(s => { const current = s.operations.find(o => o.id === op.id); current.revision = current.problem.task.revision; current.id = randomId(); delete current.problem; }); await syncNow(); await ui.render();
       }));
       else card.append(button('Recover as draft', async () => {
         const { putDraft } = await import('./draft-store.js');
         const local = overlay(state).find(t => t.id === op.ticket_id);
         const steps = local?.checklist?.map(item => `- [${item.completed ? 'x' : ' '}] ${item.title}`).join('\n');
-        await putDraft({ id: crypto.randomUUID(), title: local?.title || 'Recovered task', body: [local?.body, ...state.operations.filter(o => o.ticket_id === op.ticket_id && o.kind === 'note').map(o => o.changes.body), steps].filter(Boolean).join('\n\n'), files: [], tags: '', priority: local?.priority || 'medium', updated_at: new Date().toISOString() });
+        await putDraft({ id: randomId(), title: local?.title || 'Recovered task', body: [local?.body, ...state.operations.filter(o => o.ticket_id === op.ticket_id && o.kind === 'note').map(o => o.changes.body), steps].filter(Boolean).join('\n\n'), files: [], tags: '', priority: local?.priority || 'medium', updated_at: new Date().toISOString() });
         location.hash = '#/drafts';
       }));
     }

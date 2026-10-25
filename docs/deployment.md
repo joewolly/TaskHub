@@ -1,13 +1,14 @@
 # Daily-use deployment
 
 Target: the homelab Docker server `docker-main` (`192.168.100.38` on the LAN).
-The app stays private to your tailnet, with password sign-in and HTTPS through
+The app supports password sign-in over LAN HTTP and private HTTPS through
 Tailscale Serve.
 
 **Task Hub is deployed and in daily use.** It runs from `/opt/task-hub` as
 Compose project `task-hub` (container `homelab-ticket`) with the private
 override, bound only to `127.0.0.1:8080`, behind a tailnet-only Serve route
-with no Funnel. The private HTTPS address is not recorded here because this
+with no Funnel. An optional LAN proxy also serves `http://192.168.100.38:8080`.
+The private HTTPS address is not recorded here because this
 repository is public. The first install is done, so later releases follow
 [Backups, upgrade, and recovery](#backups-upgrade-and-recovery). Outstanding
 checks are listed in the [acceptance record](#acceptance-record).
@@ -113,6 +114,51 @@ For quick access, use Safari's **Share → Add to Home Screen** or the Android
 browser's **Add to Home screen** menu. Cached tasks and supported edits work offline;
 see [mobile support](mobile.md) for limits. Keep Tailscale connected to sync away from home.
 
+## LAN access alongside Tailscale
+
+On the Linux Docker host, add these settings to the existing `.env`:
+
+```dotenv
+TASK_HUB_LAN_IP=192.168.100.38
+TASK_HUB_LAN_PORT=8080
+```
+
+Use the host's actual LAN address, never `0.0.0.0` or its Tailscale address.
+Keep the private override and include the LAN override on future upgrades:
+
+```sh
+docker compose -p task-hub -f docker-compose.yml -f docker-compose.private.yml -f docker-compose.lan.yml up -d
+docker compose -p task-hub -f docker-compose.yml -f docker-compose.private.yml -f docker-compose.lan.yml ps
+```
+
+Open `http://192.168.100.38:8080` and sign in with the existing password.
+The `lan` nginx service uses Linux host networking and listens only on that
+LAN address. It forwards to the existing loopback backend, replaces incoming
+forwarding headers with the real client address, and removes `Secure` only
+from the LAN session cookie. The backend keeps `COOKIE_SECURE=true` and
+`TRUST_PROXY=true`; Tailscale HTTPS keeps its secure cookies and existing route.
+Do not publish the backend directly while it trusts proxy headers.
+
+LAN HTTP sends passwords and sessions unencrypted, so use it only on trusted
+networks and keep the port closed at the Internet router. If the host has a
+firewall or inter-VLAN rules, allow this port only from intended LAN clients.
+Service-worker caching, installable offline support, and push require HTTPS;
+keep using the Tailscale address for those features. LAN and Tailscale are
+separate browser origins with separate sign-ins, drafts, and local caches;
+server tasks and attachments are shared. UUID generation uses browser secure
+random bytes on HTTP so capture, paste, and edit operations still work online.
+
+For repeatable deployment, set `TASK_HUB_LAN_PROXY_IMAGE` to the verified
+`nginx@sha256:...` digest after pulling the image. To disable LAN access:
+
+```sh
+docker compose -p task-hub -f docker-compose.yml -f docker-compose.private.yml -f docker-compose.lan.yml stop lan
+```
+
+Verify LAN login, capture, editing, attachments, and logout; anonymous API
+requests must return 401 on both routes. Confirm Tailscale login still sets a
+`Secure` cookie and that Serve remains tailnet-only with no Funnel.
+
 ## Backups, upgrade, and recovery
 
 `ticket-data` holds `/data/homelab.db` and its SQLite sidecars. `ticket-backups`
@@ -193,7 +239,7 @@ the pre-upgrade snapshot name alongside the deployment, not in this repository.
 | Check | Status |
 | --- | --- |
 | Project, mounts, and private HTTPS URL confirmed | Done |
-| Loopback-only Docker binding, tailnet-only Serve, no Funnel | Done |
+| Loopback-only backend, LAN-only HTTP proxy, tailnet-only Serve, no Funnel | Done |
 | Pre-upgrade snapshot and prior image kept on each upgrade | Done |
 | Scheduled backup ran and its SQLite copy restored cleanly (integrity check, schema, row counts) | Done |
 | Full isolated restore drill (restore container, attachments, restart) | Outstanding |

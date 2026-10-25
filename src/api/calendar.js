@@ -1,6 +1,6 @@
-import { CLOSED_STATUSES } from '../validate.js';
+import { TERMINAL_STATUSES } from '../validate.js';
 
-const CLOSED_LIST = CLOSED_STATUSES.map((s) => `'${s}'`).join(', ');
+const CLOSED_LIST = TERMINAL_STATUSES.map((s) => `'${s}'`).join(', ');
 
 /**
  * An iCalendar feed of everything with a date attached: open tickets that have

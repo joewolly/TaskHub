@@ -36,7 +36,7 @@ export function normalizePlanning(db, fields, input, existing = {}) {
   const merged = { ...existing, ...fields };
   if (Object.hasOwn(input, 'today')) {
     if (boolean(input.today, 'today')) {
-      if (['resolved', 'closed'].includes(merged.status))
+      if (['resolved', 'closed', 'skipped'].includes(merged.status))
         throw new ValidationError('Reopen the task before adding it to Today');
       fields.queue = 'next';
       fields.snoozed_until = null;
@@ -53,7 +53,7 @@ export function normalizePlanning(db, fields, input, existing = {}) {
   }
   const final = { ...merged, ...fields };
   if (
-    ['resolved', 'closed'].includes(final.status) ||
+    ['resolved', 'closed', 'skipped'].includes(final.status) ||
     final.queue !== 'next' ||
     final.waiting_on ||
     final.snoozed_until > dateFor(db)
@@ -202,8 +202,11 @@ export function projects(db, id, input = {}, method = 'GET') {
   if (id && !row) throw new NotFoundError('Project not found');
   if (method === 'DELETE')
     return transaction(db, () => {
-      for (const t of listTickets(db, { project_id: id, status: 'all' }))
-        updateTicket(db, t.id, { project_id: null });
+      for (const t of listTickets(db, { project_id: id, status: 'all' })) {
+        // Reference cleanup must not reopen or alter a skipped occurrence.
+        if (t.status === 'skipped') db.prepare('UPDATE tickets SET project_id = NULL WHERE id = ?').run(t.id);
+        else updateTicket(db, t.id, { project_id: null });
+      }
       db.prepare('DELETE FROM projects WHERE id = ?').run(id);
     });
   if (method === 'POST' || method === 'PATCH') {
@@ -235,7 +238,7 @@ export function projects(db, id, input = {}, method = 'GET') {
     return {
       ...p,
       total: tasks.length,
-      completed: tasks.filter((t) => !t.is_open).length,
+      completed: tasks.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
       next_action: actionable ?? null,
     };
   };

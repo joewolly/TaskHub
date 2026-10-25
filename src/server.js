@@ -13,6 +13,7 @@ import { configureLogging, log, errorFields } from './log.js';
 import { createRateLimiter } from './ratelimit.js';
 import { createNotifier } from './notify.js';
 import { runBackupSafely, getBackupStatus } from './backup.js';
+import { skipChore } from './api/chore-skip.js';
 import { sweepWarranties } from './api/warranty.js';
 import {
   listDevices,
@@ -116,6 +117,7 @@ const ROUTES = [
   ['POST', '/api/push/subscriptions/:subscriptionId/test', ({ db, config, params }) => testPush(db, config, params.subscriptionId), 200],
   ['GET', '/api/sync/snapshot', ({ db }) => snapshot(db)],
   ['GET', '/api/backup/status', ({ db, config }) => getBackupStatus(db, config.backup)],
+  ['POST', '/api/tickets/:id/skip', ({ db, params, body, req }) => skipChore(db, params.id, body, req.headers['idempotency-key']), 200],
   ['POST', '/api/sync/operations', ({ db, body, notifier }) => applyOperation(db, body, notifier), 200],
   [
     'GET',

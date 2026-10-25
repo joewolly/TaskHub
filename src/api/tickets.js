@@ -9,6 +9,7 @@ import { syncRecurrence } from '../recurrence.js';
 import { dateFor } from '../dates.js';
 import {
   CLOSED_STATUSES,
+  TERMINAL_STATUSES,
   PRIORITIES,
   TICKET_STATUSES,
   TICKET_QUEUES,
@@ -28,6 +29,7 @@ import {
 } from '../validate.js';
 
 const CLOSED_LIST = CLOSED_STATUSES.map((s) => `'${s}'`).join(', ');
+const TERMINAL_LIST = TERMINAL_STATUSES.map((s) => `'${s}'`).join(', ');
 
 // Ranks priority so "most urgent first" sorts correctly instead of alphabetically.
 const PRIORITY_RANK = `CASE t.priority
@@ -76,7 +78,7 @@ export function listTickets(db, query = {}) {
 
   // `status=active` is the default view: everything still needing attention.
   if (query.status === 'active' || (!query.status && query.status !== '')) {
-    where.push(`t.status NOT IN (${CLOSED_LIST})`);
+    where.push(`t.status NOT IN (${TERMINAL_LIST})`);
   } else if (query.status === 'done') {
     where.push(`t.status IN (${CLOSED_LIST})`);
   } else if (query.status && query.status !== 'all') {
@@ -205,6 +207,7 @@ export function createTicket(db, input = {}, { scheduleId = null } = {}) {
 
 export function updateTicket(db, id, input = {}) {
   const existing = getTicket(db, id);
+  if (existing.status === 'skipped') throw new ValidationError('Skipped occurrences are immutable; use this task again to create new work');
 
   const fields = parseTicket(input, { partial: true });
   const tags = tagList(input.tags);
@@ -247,7 +250,7 @@ export function updateTicket(db, id, input = {}) {
         .prepare(
           `SELECT 1 FROM tickets
             WHERE schedule_id = ? AND id > ?
-              AND status NOT IN (${CLOSED_LIST})
+              AND status NOT IN (${TERMINAL_LIST})
             LIMIT 1`,
         )
         .get(existing.schedule_id, existing.id);
@@ -311,6 +314,7 @@ export function updateTicket(db, id, input = {}) {
 }
 
 export function deleteTicket(db, id) {
+  if (getTicket(db, id).status === 'skipped') throw new ValidationError('Skipped occurrences are retained for history');
   const ticket = getTicket(db, id);
   if (ticket.is_chore)
     throw new ValidationError('Generated chore tickets cannot be deleted');
@@ -437,6 +441,7 @@ export function listTags(db) {
 }
 
 function parseTicket(input, { partial }) {
+  if (input.status === 'skipped') throw new ValidationError('Use the explicit chore skip action with a reason');
   const fields = planningFields(input, partial);
   const has = (key) => Object.hasOwn(input, key);
   if (!partial || has('estimate_minutes')) fields.estimate_minutes = optionalEstimate(input.estimate_minutes);
@@ -512,7 +517,7 @@ function shapeTicket({ tag_csv, ...ticket }) {
     ...ticket,
     tags: tag_csv ? tag_csv.split(',').sort() : [],
     is_chore: Boolean(ticket.is_chore),
-    is_open: !CLOSED_STATUSES.includes(ticket.status),
+    is_open: !TERMINAL_STATUSES.includes(ticket.status),
   };
 }
 

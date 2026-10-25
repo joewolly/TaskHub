@@ -1,4 +1,6 @@
 import { preparePhoto } from './photos.js';
+import { randomId } from './uuid.js';
+import { invalidateNavigationReads } from './offline.js';
 import {
   listDrafts,
   getDraft,
@@ -18,7 +20,7 @@ export { clearDrafts };
 export async function saveQuickCapture(value) {
   const title = String(value).trim().slice(0, 200);
   if (!title) throw new Error('Give your task a title.');
-  const id = crypto.randomUUID();
+  const id = randomId();
   const draft = {
     id,
     title,
@@ -50,7 +52,7 @@ export async function saveQuickCapture(value) {
       signal: AbortSignal.timeout(15000),
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': id },
       body: JSON.stringify(draft.payload),
-    }).then(response);
+    }).then(writtenResponse);
     await deleteDraft(id);
     return { ticketId: ticket.id };
   } catch {
@@ -67,7 +69,7 @@ const TYPES = {
   txt: 'text/plain',
   log: 'text/plain',
 };
-const uid = () => crypto.randomUUID();
+const uid = randomId;
 function fileType(file) {
   const type = (file.type || '').split(';')[0].toLowerCase();
   return !type ||
@@ -89,6 +91,11 @@ async function response(res) {
       new Error(data.error || `Request failed (${res.status})`),
       { status: res.status },
     );
+  return data;
+}
+async function writtenResponse(res) {
+  const data = await response(res);
+  invalidateNavigationReads();
   return data;
 }
 
@@ -473,7 +480,7 @@ export async function renderCapture(view, query = {}) {
                 'Idempotency-Key': draft.id,
               },
               body: JSON.stringify(draft.payload),
-            }).then(response);
+            }).then(writtenResponse);
             draft.ticket_id = ticket.id;
             await persist();
           }
@@ -488,7 +495,7 @@ export async function renderCapture(view, query = {}) {
                 'Idempotency-Key': file.id,
               },
               body: file.bytes,
-            }).then(response);
+            }).then(writtenResponse);
             file.uploaded = true;
             await persist();
           }
@@ -653,7 +660,7 @@ export async function renderDrafts(view) {
 
 export async function renderPaste(view, query = {}) {
   return renderPasteCapture(view, query, ui, {
-    setPending: (hash) => { pendingCaptureHash = hash; }, response,
+    setPending: (hash) => { pendingCaptureHash = hash; }, response: writtenResponse,
   });
 }
 

@@ -1,4 +1,4 @@
-import { offlineApi, setupOffline, offlineState, clearOffline, renderSync } from './offline.js';
+import { offlineApi, setupOffline, offlineState, clearOffline, renderSync, invalidateNavigationReads } from './offline.js';
 import { renderSettings } from './settings.js';
 import { preparePhoto } from './photos.js';
 import { setupMobile } from './mobile.js';
@@ -1406,6 +1406,7 @@ async function uploadAttachment(id, file) {
     const payload = await res.json().catch(() => ({}));
     throw new Error(payload.error ?? `Upload failed (${res.status})`);
   }
+  invalidateNavigationReads();
 }
 
 const ATTACHMENT_TYPES = {
@@ -2716,6 +2717,7 @@ async function render() {
 
   try {
     if (!['capture', 'drafts', 'settings', 'sync'].includes(match?.[2])) await refreshPlanning();
+    if (version !== renderVersion) return;
     if (!match) {
       next.append(
         el(
@@ -2748,7 +2750,7 @@ async function render() {
 
   if (version === renderVersion) {
     next.setAttribute('aria-live', 'polite');
-    view.replaceWith(next);
+    document.getElementById('view').replaceWith(next);
     dispatchEvent(new Event('taskhub-render'));
   }
 }
@@ -2785,6 +2787,21 @@ async function initSession() {
     }),
   );
 }
+
+// Own in-app navigation explicitly: Safari must not reload the document for a tab.
+document.addEventListener('click', event => {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const link = event.target.closest?.('a[href]');
+  if (!link || link.hasAttribute('download') || link.target && link.target !== '_self') return;
+  const target = new URL(link.href, location.href);
+  if (target.origin !== location.origin || target.pathname !== location.pathname ||
+      target.search !== location.search || !target.hash.startsWith('#/')) return;
+  event.preventDefault();
+  if (target.href === location.href) return;
+  const oldURL = location.href;
+  history.pushState(null, '', target.href);
+  dispatchEvent(new HashChangeEvent('hashchange', { oldURL, newURL: location.href }));
+});
 
 window.addEventListener('hashchange', () => {
   if (pendingCaptureHash) {
@@ -2825,7 +2842,11 @@ document.getElementById('shortcuts').addEventListener('click', showShortcuts);
 installShortcuts();
 setupMobile();
 setupOffline();
-addEventListener('taskhub-synced', () => {
+addEventListener('taskhub-synced', event => {
+  // These unfiltered task pages are fully represented by the sync snapshot.
+  // History, searches, inventory, and other screens still refresh from their APIs.
+  const route = location.hash.replace(/^#/, '') || '/';
+  if (event.detail?.changed === false && ['/', '/dashboard', '/today', '/inbox', '/next', '/waiting', '/snoozed'].includes(route)) return;
   if (!document.body.dataset.captureShell && !document.querySelector('#modal-root form, .more-nav[open], .bulk-list.selecting, .ticket-actions[open]') && !document.activeElement?.matches('input, textarea, select') && !/^#\/(capture|paste|drafts|mobile-settings)/.test(location.hash)) render();
 });
 initSession();

@@ -1,3 +1,5 @@
+import { randomId } from './uuid.js';
+
 export const MAX_BATCH_ROWS = 50;
 export const MAX_TITLE_LENGTH = 200;
 export const MAX_PASTE_LENGTH = 20000;
@@ -22,7 +24,7 @@ export function titleError(title) {
   return '';
 }
 
-export function newBatch(id = crypto.randomUUID()) {
+export function newBatch(id = randomId()) {
   return {
     id, kind: 'paste-tasks', version: 1, revision: 0, stage: 'input', source: '', rows: [],
     updated_at: new Date().toISOString(),
@@ -31,7 +33,7 @@ export function newBatch(id = crypto.randomUUID()) {
 
 export function previewRows(source) {
   return parseTaskList(source).map((title) => ({
-    id: crypto.randomUUID(), title, included: true, payload: null,
+    id: randomId(), title, included: true, payload: null,
     ticket_id: null, error: '',
   }));
 }
